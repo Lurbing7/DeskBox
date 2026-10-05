@@ -49,10 +49,9 @@ public sealed class ContentWidgetWindowFactoryTests : IDisposable
     [InlineData(WidgetKind.SystemMonitor)]
     public void SystemMonitor_HasImplementedWindowRegistration(WidgetKind widgetKind)
     {
-        var config = CreateConfig("future-window", widgetKind);
         var factory = CreateFactory();
 
-        Assert.True(factory.GetDescriptor(widgetKind).HasImplementedContent);
+        Assert.True(TestServices.CreateWidgetContentFactory().GetDescriptor(widgetKind).HasImplementedContent);
         Assert.True(factory.CanCreateContentWindow(widgetKind));
         Assert.True(WidgetRegistry.Default.CanCreateWindow(widgetKind));
     }
