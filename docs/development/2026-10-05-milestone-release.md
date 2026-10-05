@@ -24,7 +24,8 @@
 
 ## 代码开发
 
-- 进行中：版本与发布说明准备。
+- 版本与发布说明已准备，干净构建进行中。
+- 干净 x64 解决方案锁定恢复发现 SensorHost 的锁文件缺少运行时标识符（NU1004）；补齐该项目支持的运行时并重新生成锁文件，保证标准 CI 恢复可用。
 - 使用匹配的 `Platform=x64`、`RuntimeIdentifier=win-x64`；`SelfContained=false`、`WindowsAppSDKSelfContained=false`。
 - 构建输出使用新的隔离目录，保留已有输出和无关改动。
 
