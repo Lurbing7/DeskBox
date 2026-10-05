@@ -59,9 +59,13 @@ public sealed partial class ContentWidgetWindow : WidgetWindowBase, IDesktopWidg
         WidgetConfig config,
         IWidgetContent content,
         SettingsService settingsService,
-        WidgetContentDescriptor descriptor)
+        WidgetContentDescriptor descriptor,
+        string? dockMonitorDevice = null,
+        bool isDockReplica = false)
     {
         _config = config;
+        _dockMonitorDevice = dockMonitorDevice;
+        IsDockReplica = isDockReplica;
         _descriptor = descriptor;
         _chromeModeResolver = new WidgetChromeModeResolver(settingsService);
 
@@ -93,6 +97,10 @@ public sealed partial class ContentWidgetWindow : WidgetWindowBase, IDesktopWidg
         ConfigureWindowCore();
         ApplyTitleBarLayout();
         SetupEventHandlers();
+        AppWindow.Changed += (_, args) =>
+        {
+            if (args.DidVisibilityChange) App.Current.WidgetManager?.SynchronizeDockReplicaVisibility(this);
+        };
         
         // ✅ Set initial title
         this.Title = App.Current.LocalizationService.T("Window.ContentWidget.Title");
@@ -105,11 +113,12 @@ public sealed partial class ContentWidgetWindow : WidgetWindowBase, IDesktopWidg
     // ── Abstract member overrides ──────────────────────────────
 
     public override WidgetConfig Config => _config;
-    protected override double WidgetOpacity => SettingsService.Settings.WidgetOpacity;
+    protected override double WidgetOpacity => _config.WidgetKind == WidgetKind.Dock ? DockVisualLayout.Transparent(_config) ? .15 : 1 : SettingsService.Settings.WidgetOpacity;
+    protected override string WidgetMaterialType => _config.WidgetKind == WidgetKind.Dock ? DockVisualLayout.Transparent(_config) ? SettingsService.WidgetMaterialTypeAcrylic : SettingsService.WidgetMaterialTypeSolid : base.WidgetMaterialType;
     protected override FrameworkElement RootElement => RootGrid;
     protected override WidgetShell WidgetShellControl => ContentWidgetShell;
     protected override string LogPrefix => "Content";
-    protected override bool IsSizeLocked => _config.IsSizeLocked;
+    protected override bool IsSizeLocked => _config.IsSizeLocked || (_config.WidgetKind == WidgetKind.Dock && DockVisualLayout.AutoSize(_config));
     protected override bool IsPositionLocked => _config.IsPositionLocked;
     protected override bool IsCompactExpansionWarmupContentReady =>
         _contentHost.CurrentContent is not null;
@@ -559,6 +568,8 @@ public sealed partial class ContentWidgetWindow : WidgetWindowBase, IDesktopWidg
     protected override void UpdateConfigBoundsFromPhysical(
         int x, int y, int width, int height, bool persist)
     {
+        // Dock replicas share options, never physical bounds belonging to another display.
+        if (_config.WidgetKind == WidgetKind.Dock) return;
         if (persist && !CanPersistBoundsChange(persist))
         {
             return;
@@ -615,11 +626,11 @@ public sealed partial class ContentWidgetWindow : WidgetWindowBase, IDesktopWidg
     protected override void ApplySurfaceStyle()
     {
         bool isDark = RootGrid.ActualTheme == ElementTheme.Dark;
-        double surfaceOpacity = Math.Clamp(SettingsService.Settings.WidgetOpacity, 0.0, 1.0);
+        double surfaceOpacity = Math.Clamp(WidgetOpacity, 0.0, 1.0);
         var accentColor = App.Current.ThemeService?.GetEffectiveAccentColor()
             ?? AccentColorHelper.DefaultAccentColor;
         string materialType = WindowsCompatibilityService.ResolveWidgetMaterialType(
-            SettingsService.Settings.WidgetMaterialType);
+            WidgetMaterialType);
 
         // Simplified layering: only apply surface color overlay for Solid mode.
         if (materialType is SettingsService.WidgetMaterialTypeSolid && !IsSolidColorBackdropActive)
@@ -1079,6 +1090,27 @@ IsHideAnimationRunning = true;
 
     private void AttachHostContextMenuSource(IWidgetContent content)
     {
+        if (content is DockWidgetContent dock)
+        {
+            ApplyTitleBarLayout();
+            dock.AttachHost(HWnd, (flyout, target) => ShowFlyoutWithInteraction(flyout, target),
+                (width, height) => QueueDockSize(dock, width, height));
+            dock.PointerPressed += (_, e) =>
+            {
+                if (e.GetCurrentPoint(dock).Properties.IsLeftButtonPressed && DockWidgetContent.IsBlankDockPress(e.OriginalSource)) dock.CloseFolderPanel();
+                if (e.OriginalSource is DependencyObject source && HasAncestorOfType<Button>(source) || _config.IsPositionLocked || IsCompactTransitionActive ||
+                    !e.GetCurrentPoint(dock).Properties.IsLeftButtonPressed) return;
+                BeginWindowDragCore(e, dock);
+            };
+            dock.PointerMoved += (_, e) => ContinueWindowDragCore(e);
+            dock.PointerReleased += (_, e) => EndWindowDragCore(e);
+            dock.PointerCaptureLost += (sender, e) => DragPointerCaptureLostCore(sender, e);
+        }
+        if (content is SystemMonitorWidgetContent monitor)
+        {
+            _lastMonitorPosition = null;
+            monitor.AttachHost((flyout, target) => ShowFlyoutWithInteraction(flyout, target));
+        }
         if (content is FileSurfaceContent fileSurface)
         {
             fileSurface.SetHostWindowHandle(HWnd);
@@ -1356,6 +1388,8 @@ IsHideAnimationRunning = true;
         ApplyAppearancePreview();
 
         // Search capsule subtitle depends on SearchSaveHistory / hide-sensitive flags.
+        ApplyMonitorPositionSelection();
+        if (CurrentContent is DockWidgetContent dock) dock.ApplyOptionsIfChanged();
         if (CurrentContent is SearchWidgetContentAdapter)
         {
             RefreshCompactPresentation();
@@ -1408,6 +1442,7 @@ IsHideAnimationRunning = true;
                         WidgetKind.Glance => "Glance.Title",
                         WidgetKind.Search => "Search.Title",
                         WidgetKind.SystemMonitor => "SystemMonitor.Title",
+                        WidgetKind.Dock => "Dock.Title",
                         _ => ""
                     };
                     if (!string.IsNullOrEmpty(key))

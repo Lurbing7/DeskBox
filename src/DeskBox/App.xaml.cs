@@ -3013,6 +3013,14 @@ public partial class App : Application
         settingsWindow.ShowGlanceSection(widgetId);
     }
 
+    public void ShowDockSettings(string widgetId)
+    {
+        CancelBackgroundMemoryCleanup();
+        var settingsWindow = _settingsWindow ?? CreateSettingsWindow();
+        settingsWindow.ShowWindow();
+        settingsWindow.ShowDockSection(widgetId);
+    }
+
     private async Task EnsureInitialFileWidgetSetupAsync(bool isInteractiveLaunch)
     {
         if (WidgetManager is null)

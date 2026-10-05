@@ -18,7 +18,8 @@ public sealed partial class FileService
     public static async Task<OpenItemResult> OpenItemAsync(
         WidgetItem item,
         IntPtr ownerHwnd,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool allowBrokenShortcutRepair = true)
     {
         ArgumentNullException.ThrowIfNull(item);
 
@@ -39,7 +40,8 @@ public sealed partial class FileService
                 isShortcut,
                 ownerHwnd,
                 trace,
-                out _),
+                out _,
+                allowBrokenShortcutRepair),
             cancellationToken).ConfigureAwait(false);
         trace?.Mark(
             "admission",
@@ -59,7 +61,8 @@ public sealed partial class FileService
         bool isShortcut,
         IntPtr ownerHwnd,
         FileOpenTrace? trace,
-        out string resolvedTargetPath)
+        out string resolvedTargetPath,
+        bool allowBrokenShortcutRepair = true)
     {
         resolvedTargetPath = targetPath;
         string kind = FileOpenTrace.GetPathKind(itemPath, isShortcut);
@@ -97,6 +100,11 @@ public sealed partial class FileService
 
             if (shellLink && shortcutProbe.IsBroken)
             {
+                if (!allowBrokenShortcutRepair)
+                {
+                    trace?.Mark("broken-shortcut-result", "result=ShortcutTargetMissing repair=false");
+                    return OpenItemResult.ShortcutTargetMissing;
+                }
                 // Windows resolves links by tracking the file, so a shortcut
                 // whose stored path moved can still open from Explorer. Hand the
                 // link to the shell, and report this separately from a real

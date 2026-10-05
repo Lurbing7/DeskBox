@@ -35,7 +35,7 @@ internal sealed class StackPopoverHostWindow : Window
     private bool _inputSubclassInstalled;
 
     private static readonly UIntPtr InputSubclassId = new(0xDDB2);
-    public StackPopoverHostWindow(IntPtr ownerWindowHandle)
+    public StackPopoverHostWindow(IntPtr ownerWindowHandle, bool activateInitially = true)
     {
         _ownerWindowHandle = ownerWindowHandle;
         _inputSubclassProc = InputSubclassProc;
@@ -134,7 +134,7 @@ internal sealed class StackPopoverHostWindow : Window
         // preserves the original reason for avoiding Show/Hide here: neither
         // z-order nor the TOPMOST band changes when only the position moves.
         _appWindow.MoveAndResize(BuildParkedBounds(320, 240));
-        _appWindow.Show();
+        _appWindow.Show(activateInitially);
 
         Activated += (_, args) =>
         {
@@ -203,7 +203,7 @@ internal sealed class StackPopoverHostWindow : Window
         _content?.UpdateLayout();
     }
 
-    internal void RevealPrepared(RectInt32 bounds)
+    internal void RevealPrepared(RectInt32 bounds, bool activate = true)
     {
         if (_closed)
         {
@@ -215,7 +215,7 @@ internal sealed class StackPopoverHostWindow : Window
         // composition frames (switching between cached stacks).
         _appWindow.MoveAndResize(bounds);
         _parked = false;
-        Activate();
+        if (activate) Activate();
     }
 
     internal void UpdateBounds(RectInt32 bounds)

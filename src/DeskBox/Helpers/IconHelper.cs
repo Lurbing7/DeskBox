@@ -116,7 +116,8 @@ public static class IconHelper
         bool hideShortcutArrowOverlay = false,
         bool showImageFilesAsIcons = false,
         int decodePixelWidth = 0,
-        string cacheScope = SharedCacheScope)
+        string cacheScope = SharedCacheScope,
+        bool normalizeDockArtwork = false)
     {
         using var perfScope = PerformanceLogger.Measure("IconHelper.GetIcon", $"path={path}");
         var dispatcher = App.UiDispatcherQueue;
@@ -168,12 +169,18 @@ public static class IconHelper
         }
 
         string cacheKey = resolvedIconSource.CacheKey;
+        if (normalizeDockArtwork) cacheKey += ":dock-resource-v3";
         TouchCachedIconBytes(cacheKey);
         bool isShortcutPath = ShortcutHelper.IsShortcutPath(path);
         bool isInternetShortcutPath =
-            ShortcutHelper.IsInternetShortcutPath(path);
+            ShortcutHelper.IsInternetShortcutPath(path) ||
+            (normalizeDockArtwork && ShortcutHelper.IsInternetShortcutPath(iconSource.Path));
+        // A Dock .lnk may wrap a Steam .url. Use that Shell-authored item for
+        // its icon while keeping the outer shortcut as the launch entry.
+        string iconRequestPath = isInternetShortcutPath ? iconSource.Path : path;
         int normalizedDecodePixelWidth = Math.Clamp(decodePixelWidth, 0, 256);
         string bitmapCacheKey = $"{normalizedCacheScope}|{cacheKey}:decode={normalizedDecodePixelWidth}";
+        if (normalizeDockArtwork) bitmapCacheKey += ":dock-artwork-v1";
         Task<BitmapImage?> bitmapTask;
         if (s_bitmapImageCache.TryGetValue(bitmapCacheKey, out bitmapTask!))
         {
@@ -189,11 +196,12 @@ public static class IconHelper
                     iconSource,
                     cacheKey,
                     bitmapCacheKey,
-                    NormalizeSourcePath(path),
+                    NormalizeSourcePath(iconRequestPath),
                     hideShortcutArrowOverlay,
                     isShortcutPath,
                     isInternetShortcutPath,
-                    normalizedDecodePixelWidth));
+                    normalizedDecodePixelWidth,
+                    normalizeDockArtwork));
         }
         TrackDecodedBitmap(
             bitmapCacheKey,
@@ -1004,12 +1012,22 @@ public static class IconHelper
         bool hideShortcutArrowOverlay,
         bool isShortcutPath,
         bool isInternetShortcutPath,
-        int decodePixelWidth)
+        int decodePixelWidth,
+        bool normalizeDockArtwork)
     {
         if (!TryGetCachedIconBytes(iconBytesCacheKey, out var bytes))
         {
             bool shortcutProxyAttempted = false;
             IconSource loadIconSource = iconSource;
+            if (normalizeDockArtwork && loadIconSource.UsesExplicitIconIndex)
+            {
+                // An explicit icon resource is not a file-type icon. MSI may
+                // store ICO data without an extension; the Shell item for that
+                // file can successfully return a generic document instead.
+                var indexed = await BoundedBackgroundWorkScheduler.SharedShell.RunAsync(
+                    () => LoadIndexedIconBytes(loadIconSource), IconBytesLoadTimeout);
+                if (indexed.Status == BoundedBackgroundWorkStatus.Completed) bytes = indexed.Value;
+            }
             if (isInternetShortcutPath)
             {
                 // Resolve the original .url as a Shell item before interpreting
@@ -1041,7 +1059,7 @@ public static class IconHelper
                 }
             }
 
-            if (!ShortcutHelper.IsShortcutPath(loadIconSource.Path))
+            if (bytes is not { Length: > 0 } && !ShortcutHelper.IsShortcutPath(loadIconSource.Path))
             {
                 // Ask the same isolated Shell-item pipeline used by Explorer for
                 // every real file and folder. This also covers a shortcut whose
@@ -1225,6 +1243,8 @@ public static class IconHelper
         // Decode near the intended display size. This keeps large icons sharp while
         // allowing WIC to perform a high-quality downsample for compact icon layouts
         // instead of asking the compositor to shrink a 256 px bitmap to ~24 px.
+        if (normalizeDockArtwork && bytes is { Length: > 0 })
+            bytes = await Task.Run(() => DockIconNormalizer.Normalize(bytes));
         var image = await CreateBitmapImageAsync(dispatcher, bytes, decodePixelWidth);
         if (image is null)
         {
@@ -1318,7 +1338,8 @@ public static class IconHelper
         bool hideShortcutArrowOverlay,
         bool isShortcutPath,
         bool isInternetShortcutPath,
-        int decodePixelWidth)
+        int decodePixelWidth,
+        bool normalizeDockArtwork)
     {
         bool collectDiagnostics = PerformanceLogger.IsEnabled;
         long started = collectDiagnostics ? Stopwatch.GetTimestamp() : 0;
@@ -1334,7 +1355,8 @@ public static class IconHelper
                 hideShortcutArrowOverlay,
                 isShortcutPath,
                 isInternetShortcutPath,
-                decodePixelWidth);
+                decodePixelWidth,
+                normalizeDockArtwork);
             succeeded = image is not null;
             return image;
         }

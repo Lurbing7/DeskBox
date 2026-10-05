@@ -38,7 +38,7 @@ public abstract partial class WidgetWindowBase
 
         bool isDark = RootElement.ActualTheme == ElementTheme.Dark;
         double surfaceOpacity = Math.Clamp(WidgetOpacity, 0.0, 1.0);
-        string requestedMaterialType = SettingsService.Settings.WidgetMaterialType;
+        string requestedMaterialType = WidgetMaterialType;
         string materialType = WindowsCompatibilityService.ResolveWidgetMaterialType(
             requestedMaterialType);
         var tintColor = materialType == SettingsService.WidgetMaterialTypeSolid

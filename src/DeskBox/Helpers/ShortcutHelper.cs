@@ -496,6 +496,9 @@ public static class ShortcutHelper
     {
         string normalizedShortcutPath = Path.GetFullPath(shortcutPath);
         string normalizedTargetPath = Path.GetFullPath(targetFolderPath);
+        string workingDirectory = File.Exists(normalizedTargetPath)
+            ? Path.GetDirectoryName(normalizedTargetPath) ?? string.Empty
+            : normalizedTargetPath;
         string? shortcutDirectory = Path.GetDirectoryName(normalizedShortcutPath);
         if (string.IsNullOrWhiteSpace(shortcutDirectory))
         {
@@ -509,7 +512,7 @@ public static class ShortcutHelper
             normalizedTargetPath,
             description,
             string.Empty,
-            normalizedTargetPath,
+            workingDirectory,
             string.Empty,
             0);
         ShortcutNativeWriteCallResult native =
@@ -527,7 +530,7 @@ public static class ShortcutHelper
                 normalizedTargetPath,
                 description,
                 string.Empty,
-                normalizedTargetPath,
+                workingDirectory,
                 string.Empty,
                 0);
             ShortcutNativeWriteCallResult native =
@@ -638,7 +641,9 @@ public static class ShortcutHelper
         var link = (IShellLinkW)new ShellLink();
         var file = (IPersistFile)link;
         link.SetPath(normalizedTargetPath);
-        link.SetWorkingDirectory(normalizedTargetPath);
+        link.SetWorkingDirectory(File.Exists(normalizedTargetPath)
+            ? Path.GetDirectoryName(normalizedTargetPath) ?? string.Empty
+            : normalizedTargetPath);
         link.SetDescription(description);
         file.Save(normalizedShortcutPath, true);
     }

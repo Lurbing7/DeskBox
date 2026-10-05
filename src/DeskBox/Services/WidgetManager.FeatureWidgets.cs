@@ -375,6 +375,7 @@ public sealed partial class WidgetManager
             WidgetKind.Glance => "Glance.Title",
             WidgetKind.Tags => "Tags.Title",
             WidgetKind.SystemMonitor => "SystemMonitor.Title",
+            WidgetKind.Dock => "Dock.Title",
             _ => string.Empty
         };
 
@@ -422,6 +423,8 @@ public sealed partial class WidgetManager
                 WidgetKind.Weather => 200,
                 WidgetKind.Search => 280,
                 WidgetKind.Glance => 360,
+                WidgetKind.SystemMonitor => 280,
+                WidgetKind.Dock => 680,
                 _ => Math.Max(_settingsService.Settings.DefaultWidgetWidth, 320)
             },
             Height = kind switch
@@ -430,10 +433,53 @@ public sealed partial class WidgetManager
                 WidgetKind.Weather => 200,
                 WidgetKind.Search => 90,
                 WidgetKind.Glance => 260,
+                WidgetKind.SystemMonitor => 560,
+                WidgetKind.Dock => 110,
                 _ => Math.Max(_settingsService.Settings.DefaultWidgetHeight, 360)
             }
         };
         ApplyDefaultFeatureWidgetChromeMode(config, kind);
+
+        if (kind == WidgetKind.SystemMonitor)
+        {
+            try
+            {
+                var workArea = DisplayArea.Primary.WorkArea;
+                if (workArea.Width > 0 && workArea.Height > 0)
+                {
+                    double scale = WidgetPositioningService.GetDpiScale(workArea);
+                    int width = Math.Clamp((int)Math.Round(config.Width * scale), 1, workArea.Width);
+                    int height = Math.Clamp((int)Math.Round(config.Height * scale), 1, workArea.Height);
+                    int margin = Math.Min((int)Math.Ceiling(12 * scale), workArea.Width - width);
+                    var bounds = new Windows.Graphics.RectInt32(
+                        workArea.X + workArea.Width - width - margin,
+                        workArea.Y + (workArea.Height - height) / 2, width, height);
+                    WidgetPositioningService.UpdateConfigFromPhysicalBounds(config, bounds, workArea);
+                    WidgetPositioningService.CaptureAnchor(config, bounds, workArea);
+                }
+            }
+            catch { config.NeedsInitialPlacement = true; }
+        }
+
+        if (kind == WidgetKind.Dock)
+        {
+            try
+            {
+                var workArea = DisplayArea.Primary.WorkArea;
+                if (workArea.Width > 0 && workArea.Height > 0)
+                {
+                    double scale = WidgetPositioningService.GetDpiScale(workArea);
+                    int width = (int)Math.Min(config.Width * scale, Math.Max(1, workArea.Width - 32 * scale));
+                    int height = (int)Math.Min(config.Height * scale, workArea.Height);
+                    var bounds = new Windows.Graphics.RectInt32(
+                        workArea.X + (workArea.Width - width) / 2,
+                        workArea.Y + Math.Max(0, workArea.Height - height - (int)(100 * scale)), width, height);
+                    WidgetPositioningService.UpdateConfigFromPhysicalBounds(config, bounds, workArea);
+                    WidgetPositioningService.CaptureAnchor(config, bounds, workArea);
+                }
+            }
+            catch { config.NeedsInitialPlacement = true; }
+        }
 
         MarkNeedsInitialPlacementIfDisplayUnusable(config);
         _settingsService.Settings.Widgets.Add(config);

@@ -46,19 +46,15 @@ public sealed class ContentWidgetWindowFactoryTests : IDisposable
     }
 
     [Theory]
-    [InlineData(WidgetKind.Tags)]
     [InlineData(WidgetKind.SystemMonitor)]
-    public void CreateContentWindowPlan_ReturnsPlaceholderForFutureKinds(WidgetKind widgetKind)
+    public void SystemMonitor_HasImplementedWindowRegistration(WidgetKind widgetKind)
     {
         var config = CreateConfig("future-window", widgetKind);
         var factory = CreateFactory();
 
-        var plan = factory.CreateContentWindowPlan(config);
-
-        Assert.Equal(widgetKind, plan.Descriptor.WidgetKind);
-        Assert.IsType<PlaceholderWidgetContent>(plan.Content);
+        Assert.True(factory.GetDescriptor(widgetKind).HasImplementedContent);
         Assert.True(factory.CanCreateContentWindow(widgetKind));
-        Assert.False(WidgetRegistry.Default.CanCreateWindow(widgetKind));
+        Assert.True(WidgetRegistry.Default.CanCreateWindow(widgetKind));
     }
 
     [Theory]

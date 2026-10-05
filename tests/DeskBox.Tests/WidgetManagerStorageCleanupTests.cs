@@ -240,20 +240,20 @@ public sealed class WidgetManagerStorageCleanupTests : IDisposable
     }
 
     [Fact]
-    public async Task RestoreWidgetsAsync_SkipsFutureContentWidgetsWhileRegistryIsClosed()
+    public async Task RestoreWidgetsAsync_SkipsDisabledMonitorFeature()
     {
         _settingsService.Settings.Widgets.Add(new WidgetConfig
         {
-            Id = "tags-hidden",
-            Name = "Tags",
-            WidgetKind = WidgetKind.Tags,
+            Id = "system-monitor-hidden",
+            Name = "System Monitor",
+            WidgetKind = WidgetKind.SystemMonitor,
             IsVisible = true
         });
 
         await _widgetManager.RestoreWidgetsAsync();
 
         Assert.Empty(_widgetManager.ContentWidgets);
-        Assert.False(WidgetRegistry.Default.CanCreateWindow(WidgetKind.Tags));
+        Assert.True(WidgetRegistry.Default.CanCreateWindow(WidgetKind.SystemMonitor));
     }
 
     [Fact]

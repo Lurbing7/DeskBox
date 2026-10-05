@@ -100,6 +100,7 @@ public sealed partial class WidgetManager
                 }
             }
 
+            IncludeDockReplicas(windowsToRaise);
             App.LogVerbose($"[TrayBatch] Raise prepared={windowsToRaise.Count}/{candidates.Count}");
             var windowsToAnimate = windowsToRaise
                 .Where(window => !window.Visible)

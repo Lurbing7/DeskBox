@@ -239,7 +239,10 @@ public enum WidgetKind
     Productivity,
 
     /// <summary>At-a-glance background, time and date widget.</summary>
-    Glance
+    Glance,
+
+    /// <summary>Folder-backed application dock with window attention signals.</summary>
+    Dock
 }
 
 public sealed class WidgetKindJsonConverter : JsonConverter<WidgetKind>

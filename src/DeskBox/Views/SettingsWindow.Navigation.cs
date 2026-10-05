@@ -414,6 +414,13 @@ public sealed partial class SettingsWindow
         NavigateToSettingsSection("GlanceSettings");
     }
 
+    public void ShowDockSection(string widgetId)
+    {
+        var section = (DockWidgetSettingsSection)EnsureSettingsSectionCreated("DockSettings");
+        section.SelectWidget(widgetId);
+        NavigateToSettingsSection("DockSettings");
+    }
+
     public void RefreshUpdateStateFromService()
     {
         ViewModel.RefreshCachedUpdateState();

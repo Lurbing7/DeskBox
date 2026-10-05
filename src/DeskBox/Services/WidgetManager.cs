@@ -682,6 +682,16 @@ public sealed partial class WidgetManager
                 SetSearchFeatureWidgetEnabledAsync,
                 () => HideAndCloseFeatureWidgetAsync(WidgetKind.Search)),
             new(
+                WidgetKind.Dock,
+                async _ => await CreateSingletonContentFeatureWidgetAsync(WidgetKind.Dock),
+                (enabled, reveal) => SetContentFeatureWidgetEnabledAsync(WidgetKind.Dock, enabled, reveal),
+                () => HideAndCloseFeatureWidgetAsync(WidgetKind.Dock)),
+            new(
+                WidgetKind.SystemMonitor,
+                async _ => await CreateSingletonContentFeatureWidgetAsync(WidgetKind.SystemMonitor),
+                (enabled, reveal) => SetContentFeatureWidgetEnabledAsync(WidgetKind.SystemMonitor, enabled, reveal),
+                () => HideAndCloseFeatureWidgetAsync(WidgetKind.SystemMonitor)),
+            new(
                 WidgetKind.Glance,
                 CreateOrShowGlanceWidgetsAsync,
                 SetGlanceFeatureWidgetEnabledAsync,
@@ -695,6 +705,22 @@ public sealed partial class WidgetManager
     {
         WidgetWindowProvider[] providers =
         [
+            new(
+                WidgetKind.Dock,
+                async request => await CreateContentWidgetFromConfigAsync(
+                    request.Config,
+                    request.KeepPreparedForAnimation,
+                    request.RevealAfterCreate,
+                    request.ShowRaisedWhileInitializing,
+                    request.CancellationToken)),
+            new(
+                WidgetKind.SystemMonitor,
+                async request => await CreateContentWidgetFromConfigAsync(
+                    request.Config,
+                    request.KeepPreparedForAnimation,
+                    request.RevealAfterCreate,
+                    request.ShowRaisedWhileInitializing,
+                    request.CancellationToken)),
             new(
                 WidgetKind.File,
                 async request => await CreateContentWidgetFromConfigAsync(
@@ -784,6 +810,7 @@ public sealed partial class WidgetManager
 
         RefreshWidgetGroupPresentationDefaultsIfChanged();
         ApplyPerformanceSettingsIfChanged();
+        QueueDockDisplayReconcile();
     }
 
     private void ApplyPerformanceSettingsIfChanged()
@@ -1533,6 +1560,7 @@ public sealed partial class WidgetManager
                 }
             }
 
+            IncludeDockReplicas(windowsToShow);
             App.LogVerbose($"[TrayBatch] SetAllVisible preparedShow={windowsToShow.Count}/{candidates.Count}");
             var windowsToAnimate = windowsToShow
                 .Where(window => !window.Visible)
@@ -1683,6 +1711,7 @@ public sealed partial class WidgetManager
         await Task.Yield();
         QueueIdleWidgetZOrderNormalization("display-topology-restored");
         PlacePendingInitialWidgets();
+        await ReconcileDockDisplaysAsync();
         return allRestored;
     }
 
@@ -2351,6 +2380,8 @@ public sealed partial class WidgetManager
     /// </summary>
     public void CloseAll()
     {
+        _dockDisplaysStopping = true;
+        CloseDockReplicas();
         CancelAllWidgetSurfaceSwitches();
         StopTrayLayerRestoreMonitor();
         DisposeWidgetDetachPlacementPreview();
@@ -2522,6 +2553,7 @@ public sealed partial class WidgetManager
             WidgetKind.Music => (380, 190),
             WidgetKind.Weather => (200, 200),
             WidgetKind.Glance => (360, 260),
+            WidgetKind.Dock => (680, 110),
             _ => (
                 _settingsService.Settings.DefaultWidgetWidth,
                 _settingsService.Settings.DefaultWidgetHeight)
@@ -2651,6 +2683,7 @@ public sealed partial class WidgetManager
 
         window.Closed += (_, _) =>
         {
+            if (config.WidgetKind == WidgetKind.Dock) CloseDockReplicas(config.Id);
             List<string> registeredIds = _contentWidgets
                 .Where(entry => ReferenceEquals(entry.Value, window))
                 .Select(entry => entry.Key)
@@ -2726,6 +2759,7 @@ public sealed partial class WidgetManager
             throw;
         }
 
+        if (config.WidgetKind is WidgetKind.Dock or WidgetKind.SystemMonitor) await ReconcileDockDisplaysAsync();
         return window;
     }
 

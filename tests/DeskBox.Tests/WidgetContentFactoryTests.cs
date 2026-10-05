@@ -12,7 +12,7 @@ public sealed class WidgetContentFactoryTests
     [InlineData(WidgetKind.Todo, "Todo", WidgetContentStage.Implemented, false, WidgetContentAvailability.Available)]
     [InlineData(WidgetKind.Tags, "Tags", WidgetContentStage.Placeholder, false, WidgetContentAvailability.Planned)]
     [InlineData(WidgetKind.Music, "Music", WidgetContentStage.Implemented, false, WidgetContentAvailability.Available)]
-    [InlineData(WidgetKind.SystemMonitor, "System Monitor", WidgetContentStage.Placeholder, false, WidgetContentAvailability.Planned)]
+    [InlineData(WidgetKind.SystemMonitor, "System Monitor", WidgetContentStage.Implemented, true, WidgetContentAvailability.Available)]
     [InlineData(WidgetKind.Search, "Search", WidgetContentStage.Implemented, false, WidgetContentAvailability.Available)]
     [InlineData(WidgetKind.Glance, "Glance", WidgetContentStage.Implemented, false, WidgetContentAvailability.Available)]
     public void GetDescriptor_ReturnsContentMetadata(
@@ -53,7 +53,8 @@ public sealed class WidgetContentFactoryTests
             WidgetKind.Tags,
             WidgetKind.SystemMonitor,
             WidgetKind.Search,
-            WidgetKind.Glance
+            WidgetKind.Glance,
+            WidgetKind.Dock
         ], descriptors.Select(descriptor => descriptor.WidgetKind));
     }
 
@@ -89,7 +90,7 @@ public sealed class WidgetContentFactoryTests
 
         var descriptors = factory.GetCreateEntryDescriptors();
 
-        Assert.Equal([WidgetKind.File], descriptors.Select(descriptor => descriptor.WidgetKind));
+        Assert.Equal([WidgetKind.File, WidgetKind.SystemMonitor, WidgetKind.Dock], descriptors.Select(descriptor => descriptor.WidgetKind));
         Assert.All(descriptors, descriptor => Assert.True(WidgetRegistry.Default.CanCreateWindow(descriptor.WidgetKind)));
         Assert.All(descriptors, descriptor => Assert.False(string.IsNullOrWhiteSpace(descriptor.CreateEntryTextKey)));
         Assert.Equal("Common.NewWidget", descriptors.Single(descriptor => descriptor.WidgetKind == WidgetKind.File).CreateEntryTextKey);
@@ -121,8 +122,10 @@ public sealed class WidgetContentFactoryTests
             WidgetKind.Todo,
             WidgetKind.Music,
             WidgetKind.Weather,
+            WidgetKind.SystemMonitor,
             WidgetKind.Search,
-            WidgetKind.Glance
+            WidgetKind.Glance,
+            WidgetKind.Dock
         ], descriptors.Select(descriptor => descriptor.WidgetKind));
         Assert.DoesNotContain(descriptors, descriptor => descriptor.WidgetKind == WidgetKind.File);
         Assert.DoesNotContain(descriptors, descriptor => descriptor.IsPlanned);
@@ -138,7 +141,7 @@ public sealed class WidgetContentFactoryTests
     [InlineData(WidgetKind.Todo, true, false, false, true, false)]
     [InlineData(WidgetKind.Tags, false, true, false, false, true)]
     [InlineData(WidgetKind.Music, true, false, false, true, false)]
-    [InlineData(WidgetKind.SystemMonitor, false, true, false, false, true)]
+    [InlineData(WidgetKind.SystemMonitor, true, false, true, true, false)]
     [InlineData(WidgetKind.Search, true, false, false, true, false)]
     [InlineData(WidgetKind.Glance, true, false, false, true, false)]
     [InlineData(WidgetKind.Productivity, false, false, false, false, false)]
@@ -182,14 +185,13 @@ public sealed class WidgetContentFactoryTests
     }
 
     [Theory]
-    [InlineData(WidgetKind.Tags)]
     [InlineData(WidgetKind.SystemMonitor)]
-    public void CanCreatePlaceholderContent_ForFutureWidgetKinds(WidgetKind widgetKind)
+    public void MonitorIsImplementedRatherThanPlaceholder(WidgetKind widgetKind)
     {
         var factory = TestServices.CreateWidgetContentFactory();
 
-        Assert.True(factory.CanCreatePlaceholderContent(widgetKind));
-        Assert.False(WidgetRegistry.Default.CanCreateWindow(widgetKind));
+        Assert.False(factory.CanCreatePlaceholderContent(widgetKind));
+        Assert.True(WidgetRegistry.Default.CanCreateWindow(widgetKind));
     }
 
     [Fact]
@@ -198,17 +200,13 @@ public sealed class WidgetContentFactoryTests
         var factory = TestServices.CreateWidgetContentFactory();
         var config = new WidgetConfig
         {
-            Id = "tags-test",
-            Name = "Tags",
-            WidgetKind = WidgetKind.Tags
+            Id = "system-monitor-test",
+            Name = "System Monitor",
+            WidgetKind = WidgetKind.SystemMonitor
         };
 
-        var content = factory.CreatePlaceholderContent(config);
-
-        Assert.IsType<PlaceholderWidgetContent>(content);
-        Assert.Equal("tags-test", content.WidgetId);
-        Assert.Equal(WidgetKind.Tags, content.WidgetKind);
-        Assert.False(WidgetRegistry.Default.CanCreateWindow(WidgetKind.Tags));
+        Assert.Throws<NotSupportedException>(() => factory.CreatePlaceholderContent(config));
+        Assert.True(WidgetRegistry.Default.CanCreateWindow(WidgetKind.SystemMonitor));
     }
 
     [Fact]
@@ -348,9 +346,8 @@ public sealed class WidgetContentFactoryTests
     }
 
     [Theory]
-    [InlineData(WidgetKind.Tags)]
     [InlineData(WidgetKind.SystemMonitor)]
-    public void CreateDetachedContent_ReturnsPlaceholderForFutureKinds(WidgetKind widgetKind)
+    public void CreateDetachedContent_ReturnsSystemMonitor(WidgetKind widgetKind)
     {
         var factory = TestServices.CreateWidgetContentFactory();
         var config = new WidgetConfig
@@ -360,13 +357,11 @@ public sealed class WidgetContentFactoryTests
             WidgetKind = widgetKind
         };
 
-        var content = factory.CreateDetachedContent(config);
-
-        Assert.IsType<PlaceholderWidgetContent>(content);
-        Assert.Equal(widgetKind, content.WidgetKind);
+        // 内容由 WinUI 宿主创建；普通测试进程不构造 XAML 视觉树。
+        Assert.True(factory.GetDescriptor(widgetKind).HasImplementedContent);
         Assert.True(factory.CanCreateDetachedContent(widgetKind));
-        Assert.False(factory.CanShowInCreateEntry(widgetKind));
-        Assert.False(WidgetRegistry.Default.CanCreateWindow(widgetKind));
+        Assert.True(factory.CanShowInCreateEntry(widgetKind));
+        Assert.True(WidgetRegistry.Default.CanCreateWindow(widgetKind));
     }
 
     [Fact]

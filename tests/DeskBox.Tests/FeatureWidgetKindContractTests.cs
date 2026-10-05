@@ -22,8 +22,10 @@ public sealed class FeatureWidgetKindContractTests
                 WidgetKind.Todo,
                 WidgetKind.Music,
                 WidgetKind.Weather,
+                WidgetKind.SystemMonitor,
                 WidgetKind.Search,
-                WidgetKind.Glance
+                WidgetKind.Glance,
+                WidgetKind.Dock
             },
             FeatureWidgetSettings.FeatureKinds);
     }
@@ -33,7 +35,7 @@ public sealed class FeatureWidgetKindContractTests
     {
         Assert.False(FeatureWidgetSettings.IsFeatureWidget(WidgetKind.File));
         Assert.False(FeatureWidgetSettings.IsFeatureWidget(WidgetKind.Tags));
-        Assert.False(FeatureWidgetSettings.IsFeatureWidget(WidgetKind.SystemMonitor));
+        Assert.True(FeatureWidgetSettings.IsFeatureWidget(WidgetKind.SystemMonitor));
         Assert.False(FeatureWidgetSettings.IsFeatureWidget(WidgetKind.Productivity));
     }
 

@@ -31,6 +31,11 @@ public sealed partial class ContentWidgetWindow
 
     private void RootGrid_DragOver(object sender, DragEventArgs e)
     {
+        if (CurrentContent is DockWidgetContent dock)
+        {
+            dock.HandleRoutedDragOver(e, RootGrid);
+            return;
+        }
         if (CurrentContent is FileSurfaceContent file)
         {
             // The transparent resize grid sits above the content along every
@@ -77,6 +82,11 @@ public sealed partial class ContentWidgetWindow
 
     private async void RootGrid_Drop(object sender, DragEventArgs e)
     {
+        if (CurrentContent is DockWidgetContent dock && e.DataView.Contains(StandardDataFormats.StorageItems))
+        {
+            await dock.HandleRoutedDropAsync(e, RootGrid);
+            return;
+        }
         if (CurrentContent is FileSurfaceContent file)
         {
             file.HandleHostEdgeDrop(e);
@@ -470,6 +480,7 @@ public sealed partial class ContentWidgetWindow
 
     private void UpdatePersistedVisibility(bool isVisible, bool persistVisibility)
     {
+        if (IsDockReplica) return;
         _config.IsVisible = isVisible;
         bool groupVisibilityHandled =
             App.Current?.WidgetManager?.SetWidgetGroupVisibility(

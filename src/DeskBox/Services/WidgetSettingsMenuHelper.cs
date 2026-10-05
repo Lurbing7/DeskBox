@@ -27,6 +27,8 @@ internal static class WidgetSettingsMenuHelper
         WidgetKind.Weather => "WeatherSettings",
         WidgetKind.Glance => "GlanceSettings",
         WidgetKind.Search => "SearchSettings",
+        WidgetKind.SystemMonitor => "SystemMonitorSettings",
+        WidgetKind.Dock => "DockSettings",
         _ => null
     };
 
@@ -43,6 +45,8 @@ internal static class WidgetSettingsMenuHelper
         WidgetKind.Weather => "Widget.Settings.Weather",
         WidgetKind.Glance => "Widget.Settings.Glance",
         WidgetKind.Search => "Widget.Settings.Search",
+        WidgetKind.SystemMonitor => "Monitor.Settings",
+        WidgetKind.Dock => "Dock.Settings.Title",
         _ => "Common.Configure"
     };
 
@@ -72,6 +76,10 @@ internal static class WidgetSettingsMenuHelper
                 if (kind == WidgetKind.Glance && !string.IsNullOrWhiteSpace(widgetId))
                 {
                     App.Current.ShowGlanceSettings(widgetId);
+                }
+                else if (kind == WidgetKind.Dock && !string.IsNullOrWhiteSpace(widgetId))
+                {
+                    App.Current.ShowDockSettings(widgetId);
                 }
                 else
                 {

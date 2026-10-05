@@ -2329,6 +2329,12 @@ svc:Localized.DescriptionKey="Settings.DefaultWidth.Description"
                     <DataTemplate x:Key="SearchSettingsSectionTemplate" x:DataType="viewModels:SettingsViewModel">
                         <sections:SearchSettingsSection x:Name="SearchSettingsSection" Visibility="Collapsed" />
                     </DataTemplate>
+                    <DataTemplate x:Key="SystemMonitorSettingsSectionTemplate" x:DataType="viewModels:SettingsViewModel">
+                        <sections:SystemMonitorWidgetSettingsSection Visibility="Collapsed" />
+                    </DataTemplate>
+                    <DataTemplate x:Key="DockSettingsSectionTemplate" x:DataType="viewModels:SettingsViewModel">
+                        <sections:DockWidgetSettingsSection Visibility="Collapsed" />
+                    </DataTemplate>
                     <DataTemplate x:Key="PerformanceSettingsSectionTemplate" x:DataType="viewModels:SettingsViewModel">
                         <StackPanel
                     x:Name="PerformanceSettingsSection"

@@ -3773,7 +3773,7 @@ public abstract partial class WidgetWindowBase
             height);
     }
 
-    protected RectInt32 ResolveWidgetBoundsForCurrentState()
+    protected virtual RectInt32 ResolveWidgetBoundsForCurrentState()
     {
         RectInt32 contentBounds =
             WidgetPositioningService.ResolveBoundsForCurrentTopology(Config);

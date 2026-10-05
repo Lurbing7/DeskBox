@@ -39,6 +39,24 @@
     <ApplicationIcon>Assets\deskbox.ico</ApplicationIcon>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\DeskBox.SensorHost\DeskBox.SensorHost.csproj" ReferenceOutputAssembly="false" Private="false" GlobalPropertiesToRemove="RuntimeIdentifier;Platform;PublishAot;PublishTrimmed;SelfContained" />
+  </ItemGroup>
+  <Target Name="CopySystemMonitorSensorHost" AfterTargets="Build">
+    <ItemGroup>
+      <SensorHostPayload Include="..\DeskBox.SensorHost\bin\$(Configuration)\net10.0-windows\**\*" Exclude="..\DeskBox.SensorHost\bin\$(Configuration)\net10.0-windows\**\*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(SensorHostPayload)" DestinationFiles="@(SensorHostPayload->'$(OutDir)SensorHost\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="PublishSystemMonitorSensorHost" AfterTargets="ComputeFilesToPublish" DependsOnTargets="CopySystemMonitorSensorHost">
+    <ItemGroup>
+      <ResolvedFileToPublish Include="@(SensorHostPayload)">
+        <RelativePath>SensorHost\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
   <!--
     Opt-in Native AOT audit profile. Keep ordinary Debug/Release behavior
     unchanged until the application-level AOT compatibility work is complete.

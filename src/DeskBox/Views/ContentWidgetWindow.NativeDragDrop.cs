@@ -235,6 +235,7 @@ public sealed partial class ContentWidgetWindow
             } => true,
             QuickCaptureSurfaceContent => true,
             TodoWidgetContentAdapter => true,
+            DockWidgetContent => true,
             _ => false
         };
     }
@@ -830,6 +831,7 @@ public sealed partial class ContentWidgetWindow
 
     private void NativeFileDropTarget_DragLeaveEvent()
     {
+        RunOnUi(() => { if (CurrentContent is DockWidgetContent dock) dock.CancelDragHover(); });
         System.Threading.Interlocked.Increment(
             ref _nativeFileDropPointerGeneration);
         _nativeFileDropItemTarget = null;
@@ -846,6 +848,7 @@ public sealed partial class ContentWidgetWindow
         IReadOnlyList<string>? pathHints = null,
         long pointerGeneration = 0)
     {
+        RunOnUi(() => { if (hasFileData && CurrentContent is DockWidgetContent dock) dock.ObserveScreenDrag(screenX, screenY); });
         ObserveNativeGroupTabDragHover(
             screenX,
             screenY,
@@ -1030,6 +1033,7 @@ public sealed partial class ContentWidgetWindow
         // append position.
         RunOnNativeFileDropUiThread(file =>
             file.CaptureNativeDropInsertion(screenX, screenY));
+        RunOnUi(() => { if (CurrentContent is DockWidgetContent dock) dock.CaptureScreenDrop(screenX, screenY); });
         ScheduleNativeFileDropFallback(
             paths,
             containsTemporaryFiles,
@@ -1052,6 +1056,9 @@ public sealed partial class ContentWidgetWindow
     private ShellDropLaunchResult HandleNativeLaunchDrop(
         NativeDropLaunchRequest request)
     {
+        // Dock resolves insert/launch on its UI thread, with one release guard
+        // shared by native and XAML drops. Never inspect its tree on an OLE thread.
+        if (CurrentContent is DockWidgetContent) return ShellDropLaunchResult.NotAttempted;
         if (CurrentContent is not FileSurfaceContent ||
             request.RightButtonDrag ||
             _nativeFileDropLaunchTarget is not { Path.Length: > 0 } launchTarget)
@@ -1563,6 +1570,10 @@ public sealed partial class ContentWidgetWindow
                         FindNativeDropDataContext<QuickCaptureItemViewModel>(
                             screenX,
                             screenY));
+                    break;
+
+                case DockWidgetContent dock:
+                    await dock.HandleScreenDropAsync(paths, screenX, screenY);
                     break;
 
                 case TodoWidgetContentAdapter todo:

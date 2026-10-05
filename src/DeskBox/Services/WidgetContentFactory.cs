@@ -101,13 +101,17 @@ public sealed class WidgetContentFactory
             WidgetKind.SystemMonitor,
             "System Monitor",
             "\uE9D9",
-            WidgetContentStage.Placeholder,
-            CanShowInCreateEntry: false,
-            WidgetContentAvailability.Planned,
+            WidgetContentStage.Implemented,
+            CanShowInCreateEntry: true,
+            WidgetContentAvailability.Available,
             "WidgetContent.SystemMonitor.StatusLabel",
             "WidgetContent.SystemMonitor.StatusDescription",
+            "SystemMonitor.Title",
             ChromeCategory: WidgetChromeCategory.Display,
-            DefaultChromeMode: WidgetChromeMode.Overlay),
+            DefaultChromeMode: WidgetChromeMode.Overlay,
+            HasSettingsPage: true,
+            IsFeatureWidget: true,
+            SettingsSectionTag: "SystemMonitorSettings"),
         new(
             WidgetKind.Search,
             "Search",
@@ -134,7 +138,22 @@ public sealed class WidgetContentFactory
             IsFeatureWidget: true,
             SettingsSectionTag: "GlanceSettings",
             ChromeCategory: WidgetChromeCategory.Display,
-            DefaultChromeMode: WidgetChromeMode.Overlay)
+            DefaultChromeMode: WidgetChromeMode.Overlay),
+        new(
+            WidgetKind.Dock,
+            "Dock",
+            "\uE71B",
+            WidgetContentStage.Implemented,
+            CanShowInCreateEntry: true,
+            WidgetContentAvailability.Available,
+            "WidgetContent.Dock.StatusLabel",
+            "WidgetContent.Dock.StatusDescription",
+            "Dock.Title",
+            IsFeatureWidget: true,
+            HasSettingsPage: true,
+            SettingsSectionTag: "DockSettings",
+            ChromeCategory: WidgetChromeCategory.Display,
+            DefaultChromeMode: WidgetChromeMode.Hidden)
     ];
 
     private static readonly IReadOnlyDictionary<WidgetKind, WidgetContentDescriptor> Descriptors =
@@ -278,7 +297,8 @@ public sealed class WidgetContentFactory
             new GlanceWidgetContentProvider(),
             new SearchWidgetContentProvider(),
             new PlaceholderWidgetContentProvider(WidgetKind.Tags),
-            new PlaceholderWidgetContentProvider(WidgetKind.SystemMonitor)
+            new SystemMonitorWidgetContentProvider(),
+            new DockWidgetContentProvider()
         ];
 
         return providers.ToDictionary(provider => provider.WidgetKind);
