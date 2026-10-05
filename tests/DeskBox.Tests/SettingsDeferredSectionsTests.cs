@@ -69,14 +69,14 @@ public sealed class SettingsDeferredSectionsTests
             if (!File.Exists(xamlPath))
             {
                 string code = File.ReadAllText(Path.Combine(viewsRoot, "SettingsSections", name + ".cs"));
-                string header = tag switch
+                string programmaticHeader = tag switch
                 {
                     "DockSettings" => "Dock.Settings.Title",
                     "SystemMonitorSettings" => "SystemMonitor.Title",
                     _ => throw new InvalidOperationException("Unregistered programmatic settings section: " + name)
                 };
-                Assert.Contains("T(\"" + header + "\")", code, StringComparison.Ordinal);
-                yield return new(tag, header, null);
+                Assert.Contains("T(\"" + programmaticHeader + "\")", code, StringComparison.Ordinal);
+                yield return new(tag, programmaticHeader, null);
                 yield break;
             }
             XElement nested = XDocument.Load(xamlPath).Root!;
