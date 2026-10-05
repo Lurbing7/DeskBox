@@ -65,10 +65,10 @@ public sealed class StackPopoverFirstFrameContractTests
         string prepare = SliceBetween(
             host,
             "internal void PrepareForShow(RectInt32 bounds)",
-            "internal void RevealPrepared(RectInt32 bounds)");
+            "internal void RevealPrepared(RectInt32 bounds, bool activate = true)");
         string reveal = SliceBetween(
             host,
-            "internal void RevealPrepared(RectInt32 bounds)",
+            "internal void RevealPrepared(RectInt32 bounds, bool activate = true)",
             "internal void UpdateBounds(RectInt32 bounds)");
 
         Assert.Contains("-32000", prepare, StringComparison.Ordinal);

@@ -143,7 +143,7 @@ public abstract partial class WidgetWindowBase : Window
 
     /// <summary>The opacity value (0–1) used for backdrop tinting.</summary>
     protected abstract double WidgetOpacity { get; }
-    protected virtual string WidgetMaterialType => SettingsService.Settings.WidgetMaterialType;
+    protected virtual string WidgetMaterialType => SettingsService.Settings.WidgetShell.WidgetMaterialType;
 
     /// <summary>The root XAML element (typically RootGrid).</summary>
     protected abstract FrameworkElement RootElement { get; }

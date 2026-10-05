@@ -65,7 +65,21 @@ public sealed class SettingsDeferredSectionsTests
         }
         if (element.Name.NamespaceName == "using:DeskBox.Views.SettingsSections")
         {
-            XElement nested = XDocument.Load(Path.Combine(viewsRoot, "SettingsSections", name + ".xaml")).Root!;
+            string xamlPath = Path.Combine(viewsRoot, "SettingsSections", name + ".xaml");
+            if (!File.Exists(xamlPath))
+            {
+                string code = File.ReadAllText(Path.Combine(viewsRoot, "SettingsSections", name + ".cs"));
+                string header = tag switch
+                {
+                    "DockSettings" => "Dock.Settings.Title",
+                    "SystemMonitorSettings" => "SystemMonitor.Title",
+                    _ => throw new InvalidOperationException("Unregistered programmatic settings section: " + name)
+                };
+                Assert.Contains("T(\"" + header + "\")", code, StringComparison.Ordinal);
+                yield return new(tag, header, null);
+                yield break;
+            }
+            XElement nested = XDocument.Load(xamlPath).Root!;
             foreach (var entry in ReadEntries(nested, tag, viewsRoot))
             {
                 yield return entry;

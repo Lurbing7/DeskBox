@@ -27,6 +27,8 @@
 - 版本与发布说明已准备，干净构建进行中。
 - 干净 x64 解决方案锁定恢复发现 SensorHost 的锁文件缺少运行时标识符（NU1004）；补齐该项目支持的运行时并重新生成锁文件，保证标准 CI 恢复可用。
 - 测试编译发现监控注册测试错误地从窗口工厂调用不存在的 `GetDescriptor`；改为查询实际持有描述符的内容工厂，不新增产品接口。
+- 首次全量测试 4078 通过、6 失败。发布范围内修正设置模板名称/搜索目录、改用设置所属切片，将 Dock 已有文件变更策略放入 `FileSafety` 所属域；更新浮出窗口测试的可选激活参数签名。
+- AOT 脚本测试的 PowerShell 解析错误待独立核对；本次发布不使用 AOT 模式，不修改无关 AOT 工具链。
 - 使用匹配的 `Platform=x64`、`RuntimeIdentifier=win-x64`；`SelfContained=false`、`WindowsAppSDKSelfContained=false`。
 - 构建输出使用新的隔离目录，保留已有输出和无关改动。
 

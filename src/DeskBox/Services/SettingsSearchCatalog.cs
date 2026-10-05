@@ -176,6 +176,8 @@ internal static class SettingsSearchCatalog
         new("SearchSettings", "Settings.Search.Recommendations.Title", "Settings.Search.Recommendations.Description"),
         new("SearchSettings", "Settings.Search.DefaultTab.Title", "Settings.Search.DefaultTab.Description"),
         new("SearchSettings", "Settings.Search.IconAnimation.Title", "Settings.Search.IconAnimation.Description"),
+        new("SystemMonitorSettings", "SystemMonitor.Title", null),
+        new("DockSettings", "Dock.Settings.Title", null),
         new("PerformanceSettings", "Settings.Performance.Mode.Title", "Settings.Performance.Mode.Description"),
         new("PerformanceSettings", "Settings.Performance.VisibleIdleCleanup.Title", "Settings.Performance.VisibleIdleCleanup.Description"),
         new("PerformanceSettings", "Settings.Performance.HiddenCleanup.Title", "Settings.Performance.HiddenCleanup.Description"),

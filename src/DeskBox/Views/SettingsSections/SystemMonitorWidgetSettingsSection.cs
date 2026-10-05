@@ -27,7 +27,7 @@ public sealed class SystemMonitorWidgetSettingsSection : UserControl
         _panel.Children.Clear();
         _panel.Children.Add(new TextBlock { Text = T("SystemMonitor.Title"), FontSize = 28, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
         _panel.Children.Add(new TextBlock { Text = T("Monitor.CapabilityHint"), TextWrapping = TextWrapping.Wrap });
-        WidgetConfig? config = settings.Settings.Widgets.FirstOrDefault(w => w.WidgetKind == WidgetKind.SystemMonitor && !w.IsDisabled);
+        WidgetConfig? config = settings.Settings.WidgetLayout.Widgets.FirstOrDefault(w => w.WidgetKind == WidgetKind.SystemMonitor && !w.IsDisabled);
         if (config is null)
         {
             var create = new Button { Content = T("Monitor.Enable") };

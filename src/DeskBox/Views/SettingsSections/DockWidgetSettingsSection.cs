@@ -1,5 +1,6 @@
 using System.Globalization;
 using DeskBox.Controls;
+using DeskBox.FileSafety;
 using DeskBox.Models;
 using DeskBox.Services;
 using Microsoft.UI.Xaml;
@@ -34,7 +35,7 @@ public sealed class DockWidgetSettingsSection : UserControl
         _panel.Children.Add(new TextBlock { Text = T("Dock.Settings.Title"), Style = (Style)Application.Current.Resources["TitleTextBlockStyle"] });
         _panel.Children.Add(new TextBlock { Text = T("Dock.Settings.Description"), TextWrapping = TextWrapping.Wrap });
         var settings = App.Current.SettingsService;
-        var docks = settings.Settings.Widgets.Where(w => w.WidgetKind == WidgetKind.Dock && !w.IsDisabled).ToArray();
+        var docks = settings.Settings.WidgetLayout.Widgets.Where(w => w.WidgetKind == WidgetKind.Dock && !w.IsDisabled).ToArray();
         if (docks.Length == 0)
         {
             var create = new Button { Content = T("Dock.Settings.Enable") };

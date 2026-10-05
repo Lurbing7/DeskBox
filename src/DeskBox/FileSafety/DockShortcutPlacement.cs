@@ -1,6 +1,6 @@
 using DeskBox.Helpers;
 
-namespace DeskBox.Services;
+namespace DeskBox.FileSafety;
 
 internal static class DockShortcutPlacement
 {
