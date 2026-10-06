@@ -9,6 +9,8 @@ namespace DeskBox.ViewModels;
     nameof(CalendarPanelHeight),
     nameof(CalendarPanelMaxWidth),
     nameof(CalendarPanelWidth),
+    nameof(CenteredDateFontSize),
+    nameof(CenteredDateText),
     nameof(CompactCalendarDateText),
     nameof(CompactTimeFontSize),
     nameof(DateText),

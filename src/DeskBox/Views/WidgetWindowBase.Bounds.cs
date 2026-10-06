@@ -502,7 +502,7 @@ public abstract partial class WidgetWindowBase
         }
     }
 
-    protected SizeInt32 GetPhysicalMinimumWindowSize(int x, int y, int width, int height)
+    protected virtual SizeInt32 GetPhysicalMinimumWindowSize(int x, int y, int width, int height)
     {
         return WidgetPositioningService.GetPhysicalMinimumSizeForBounds(
             new RectInt32(x, y, Math.Max(1, width), Math.Max(1, height)));

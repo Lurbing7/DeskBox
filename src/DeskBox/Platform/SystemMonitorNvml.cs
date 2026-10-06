@@ -38,7 +38,8 @@ internal sealed unsafe partial class SystemMonitorNvml : IDisposable
         catch { Dispose(); }
     }
     private nint Export(string name) => NativeLibrary.GetExport(_library, name);
-    public MonitorSensors Read(MonitorDevice? selected, IReadOnlyList<MonitorDevice> adapters)
+    public MonitorSensors Read(MonitorDevice? selected, IReadOnlyList<MonitorDevice> adapters,
+        int metrics = DeskBox.Services.SystemMonitorSelection.All)
     {
         if (!_initialized || selected is not { VendorId: 0x10de }) return new();
         try
@@ -72,7 +73,10 @@ internal sealed unsafe partial class SystemMonitorNvml : IDisposable
                 }
             }
             if (matching == 0) return new();
-            return new(GpuTemperature: ReadTemperature(matching), GpuPower: ReadPower(matching), GpuMhz: ReadClock(matching));
+            bool Has(string key) => DeskBox.Services.SystemMonitorSelection.Has(metrics, key);
+            return new(GpuTemperature: Has("GpuTemperature") ? ReadTemperature(matching) : null,
+                GpuPower: Has("GpuPower") ? ReadPower(matching) : null,
+                GpuMhz: Has("GpuFrequency") ? ReadClock(matching) : null);
         }
         catch { return new(); }
     }

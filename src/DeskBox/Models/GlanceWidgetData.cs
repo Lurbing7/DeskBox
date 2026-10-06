@@ -117,7 +117,7 @@ public enum GlanceImageFocus
 /// </summary>
 public sealed class GlanceWidgetData
 {
-    public const int CurrentVersion = 10;
+    public const int CurrentVersion = 11;
 
     public int Version { get; set; } = CurrentVersion;
     public bool ShowTime { get; set; } = true;
@@ -128,6 +128,7 @@ public sealed class GlanceWidgetData
     public GlanceTimeFormatMode TimeFormat { get; set; } = GlanceTimeFormatMode.FollowSystem;
     public GlanceLayoutMode Layout { get; set; } = GlanceLayoutMode.Centered;
     public GlanceBackgroundSource BackgroundSource { get; set; } = GlanceBackgroundSource.Bing;
+    public bool BingDaily { get; set; } = true;
     public GlanceOnlineImageCategory OnlineImageCategory { get; set; } =
         GlanceOnlineImageCategory.Featured;
     public List<string> LocalImagePaths { get; set; } = [];
@@ -168,6 +169,7 @@ public sealed class GlanceImageInfo
     public int PixelWidth { get; set; }
     public int PixelHeight { get; set; }
     public DateTimeOffset CachedAtUtc { get; set; }
+    public DateOnly? PublishedDate { get; set; }
     public GlanceOnlineImageCategory OnlineCategory { get; set; } =
         GlanceOnlineImageCategory.Featured;
     public GlanceOnlineImageProvider OnlineProvider { get; set; } =

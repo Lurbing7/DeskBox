@@ -4,6 +4,7 @@ using DeskBox.Controls;
 using DeskBox.Services;
 using DeskBox.Platform;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 
 namespace DeskBox.Views.SettingsSections;
@@ -61,6 +62,53 @@ public sealed class SystemMonitorWidgetSettingsSection : UserControl
         show.Checked += (_, _) => { config.Metadata["MonitorUnavailable"] = "true"; settings.SaveDebounced(); };
         show.Unchecked += (_, _) => { config.Metadata["MonitorUnavailable"] = "false"; settings.SaveDebounced(); };
         _panel.Children.Add(show);
+        _panel.Children.Add(new TextBlock { Text = T("Monitor.Metrics"), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+        foreach (var group in new[] {
+            ("CPU", new[] { "CpuLoad", "CpuFrequency", "CpuTemperature", "CpuFan", "CpuPower" }),
+            ("GPU", new[] { "GpuLoad", "GpuFrequency", "GpuTemperature", "GpuFan", "GpuPower" }),
+            (T("Monitor.Memory"), new[] { "Memory" }), (T("Monitor.Vram"), new[] { "Vram" }),
+            (T("Monitor.Network"), new[] { "Upload", "Download", "IP" }) })
+        {
+            var choices = new StackPanel { Spacing = 8 };
+            var children = new List<CheckBox>();
+            var selectGroup = new CheckBox { Content = group.Item1, IsThreeState = true };
+            AutomationProperties.SetAutomationId(selectGroup, "MonitorGroup." + group.Item2[0]);
+            bool updating = false;
+            void UpdateGroup()
+            {
+                updating = true;
+                int enabled = children.Count(check => check.IsChecked == true);
+                selectGroup.IsChecked = enabled == children.Count ? true : enabled == 0 ? false : null;
+                updating = false;
+            }
+            void Save()
+            {
+                foreach (var check in children) config.Metadata["MonitorMetric." + (string)check.Tag] = check.IsChecked == true ? "true" : "false";
+                UpdateGroup(); settings.SaveDebounced();
+            }
+            choices.Children.Add(selectGroup);
+            foreach (string key in group.Item2)
+            {
+                string label = key.StartsWith("Cpu") || key.StartsWith("Gpu") ? key[3..] : key;
+                var check = new CheckBox { Content = T("Monitor." + label), Tag = key, Margin = new Thickness(24, 0, 0, 0), IsChecked = SystemMonitorSelection.Has(options.Metrics, key) };
+                AutomationProperties.SetAutomationId(check, "MonitorMetric." + key);
+                children.Add(check); choices.Children.Add(check);
+                check.Checked += (_, _) => { if (!updating) Save(); };
+                check.Unchecked += (_, _) => { if (!updating) Save(); };
+            }
+            UpdateGroup();
+            void SetGroup(bool enabled)
+            {
+                if (updating) return;
+                updating = true;
+                foreach (var check in children) check.IsChecked = enabled;
+                updating = false; Save();
+            }
+            selectGroup.Checked += (_, _) => SetGroup(true);
+            selectGroup.Unchecked += (_, _) => SetGroup(false);
+            selectGroup.Indeterminate += (_, _) => { if (!updating) SetGroup(true); };
+            _panel.Children.Add(new Expander { Header = group.Item1, Content = choices, HorizontalAlignment = HorizontalAlignment.Stretch });
+        }
         _panel.Children.Add(new TextBlock { Text = T("Monitor.DisplayThreshold"), TextWrapping = TextWrapping.Wrap });
         AddThreshold("CPU", "MonitorCpuWarning", T("Monitor.Warning"), 90);
         AddThreshold("CPU", "MonitorCpuCritical", T("Monitor.Critical"), 100);

@@ -147,6 +147,7 @@
             </Border.Background>
         </Border>
 
+        <Canvas x:Name="TextContrastScrims" IsHitTestVisible="False" />
         <Grid
             x:Name="ImageForegroundThemeScope"
             Padding="20,22,20,18"
@@ -183,9 +184,9 @@
 
             <StackPanel
                 x:Name="CenteredLayoutRoot"
-                HorizontalAlignment="Center"
+                HorizontalAlignment="Stretch"
                 VerticalAlignment="Center"
-                Spacing="2"
+                Spacing="8"
                 Visibility="{Binding IsCenteredLayout, Converter={StaticResource BoolToVisibility}}">
                 <TextBlock
                     HorizontalAlignment="Center"
@@ -196,10 +197,21 @@
                     Text="{Binding TimeText}"
                     Typography.NumeralAlignment="Tabular"
                     Visibility="{Binding ShowTime, Converter={StaticResource BoolToVisibility}}" />
-                <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="8">
-                    <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorPrimaryBrush}" Text="{Binding DateText}" Visibility="{Binding ShowDate, Converter={StaticResource BoolToVisibility}}" />
-                    <TextBlock FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding WeekdayText}" Visibility="{Binding ShowWeekday, Converter={StaticResource BoolToVisibility}}" />
-                </StackPanel>
+                <TextBlock
+                    HorizontalAlignment="Stretch"
+                    FontSize="{Binding CenteredDateFontSize}"
+                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                    Text="{Binding CenteredDateText}"
+                    TextAlignment="Center"
+                    TextWrapping="WrapWholeWords"
+                    Typography.NumeralAlignment="Tabular"
+                    Visibility="{Binding ShowDate, Converter={StaticResource BoolToVisibility}}" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontSize="14"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="{Binding WeekdayText}"
+                    Visibility="{Binding ShowWeekday, Converter={StaticResource BoolToVisibility}}" />
             </StackPanel>
 
             <Grid

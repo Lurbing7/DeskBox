@@ -14,6 +14,11 @@ public sealed class SystemMonitorWidgetContent : UserControl, IWidgetContent, IW
     private readonly SettingsService? _settings;
     private readonly SystemMonitorSampler _sampler;
     private readonly StackPanel _panel = new() { Spacing = 10, Margin = new Thickness(10) };
+    private readonly Viewbox _scaled = new() { Stretch = Microsoft.UI.Xaml.Media.Stretch.Uniform,
+        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+    private Action? _layoutChanged;
+    internal double NaturalWidth => 320;
+    internal double NaturalHeight { get; private set; } = 520;
     private readonly Dictionary<string, SystemMonitorMetricIcon> _icons = [];
     private readonly Dictionary<string, (Grid Row, TextBlock Value)> _rows = [];
     private readonly Dictionary<string, ProgressBar> _bars = [];
@@ -36,7 +41,10 @@ public sealed class SystemMonitorWidgetContent : UserControl, IWidgetContent, IW
         if (config.WidgetKind != WidgetKind.SystemMonitor) throw new ArgumentException("System monitor config required.", nameof(config));
         Config = config; _localization = localization; _settings = settings;
         _sampler = new(SystemMonitorOptions.Read(config));
-        Content = new ScrollViewer { Content = _panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        _panel.Width = NaturalWidth - 20;
+        _scaled.Child = _panel;
+        Content = _scaled;
+        _panel.SizeChanged += (_, _) => UpdateNaturalSize();
         _sampler.Updated += Updated;
         _sampler.Failed += Failed;
         _localization.LanguageChanged += LanguageChanged;
@@ -55,7 +63,16 @@ public sealed class SystemMonitorWidgetContent : UserControl, IWidgetContent, IW
         };
         Build();
     }
-    internal void AttachHost(Action<FlyoutBase, FrameworkElement> showFlyout) => _showFlyout = showFlyout;
+    internal void AttachHost(Action<FlyoutBase, FrameworkElement> showFlyout, Action layoutChanged)
+    { _showFlyout = showFlyout; _layoutChanged = layoutChanged; UpdateNaturalSize(force: true); }
+    private void UpdateNaturalSize(bool force = false)
+    {
+        _panel.Measure(new Windows.Foundation.Size(NaturalWidth, double.PositiveInfinity));
+        double height = Math.Max(48, _panel.DesiredSize.Height);
+        if (!force && Math.Abs(height - NaturalHeight) < 0.5) return;
+        NaturalHeight = height;
+        _layoutChanged?.Invoke();
+    }
     private string T(string key) => _localization.T(key);
     private void Build()
     {
@@ -64,10 +81,6 @@ public sealed class SystemMonitorWidgetContent : UserControl, IWidgetContent, IW
         _panel.Children.Clear(); _rows.Clear(); _bars.Clear(); _icons.Clear();
         foreach (string group in new[] { "CPU", "GPU", "Memory", "Network" })
         {
-            var section = new StackPanel { Spacing = 0 };
-            if (group is "CPU" or "GPU") section.Children.Add(new TextBlock { Text = group, FontSize = 16, Margin = new Thickness(0, 0, 0, 4) });
-            if (group == "GPU") section.Children.Add(_gpuName);
-            if (group == "Network") section.Children.Add(_networkName);
             string[] keys = group switch
             {
                 "CPU" => ["CpuLoad", "CpuFrequency", "CpuTemperature", "CpuFan", "CpuPower"],
@@ -75,6 +88,12 @@ public sealed class SystemMonitorWidgetContent : UserControl, IWidgetContent, IW
                 "Memory" => ["Memory", "Vram"],
                 _ => ["Upload", "Download", "IP"]
             };
+            keys = keys.Where(key => SystemMonitorSelection.Has(_sampler.Options.Metrics, key)).ToArray();
+            if (keys.Length == 0) continue;
+            var section = new StackPanel { Spacing = 0 };
+            if (group is "CPU" or "GPU") section.Children.Add(new TextBlock { Text = group, FontSize = 16, Margin = new Thickness(0, 0, 0, 4) });
+            if (group == "GPU") section.Children.Add(_gpuName);
+            if (group == "Network") section.Children.Add(_networkName);
             foreach (string key in keys)
             {
                 var row = new Grid { MinHeight = 26 };
@@ -108,6 +127,7 @@ public sealed class SystemMonitorWidgetContent : UserControl, IWidgetContent, IW
                 int column = 1;
                 foreach (string key in new[] { "Upload", "Download" })
                 {
+                    if (!_rows.ContainsKey(key)) continue;
                     var row = _rows[key].Row;
                     section.Children.Remove(row);
                     row.ColumnDefinitions[1].Width = GridLength.Auto;
@@ -116,18 +136,21 @@ public sealed class SystemMonitorWidgetContent : UserControl, IWidgetContent, IW
                     _rows[key].Value.FontSize = 12;
                     Grid.SetColumn(row, column++); rates.Children.Add(row);
                 }
-                section.Children.Insert(0, rates);
+                if (column > 1) section.Children.Insert(0, rates);
             }
             var surface = (Border)Microsoft.UI.Xaml.Markup.XamlReader.Load("<Border xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Background=\"{ThemeResource CardBackgroundFillColorDefaultBrush}\" CornerRadius=\"4\" Padding=\"12,8\"/>");
             surface.Child = section; _panel.Children.Add(surface);
         }
         _panel.Children.Add(_status);
         ToolTipService.SetToolTip(_panel, T("Monitor.CapabilityHint"));
-        if (_latest is not null) Render(_latest); else _status.Text = T("Monitor.Warmup");
+        if (_sampler.Options.Metrics == 0) { _status.Text = T("Monitor.AllDisabled"); _status.Visibility = Visibility.Visible; }
+        else if (_latest is not null) Render(_latest); else { _status.Text = T("Monitor.Warmup"); _status.Visibility = Visibility.Visible; }
+        UpdateNaturalSize();
     }
     private void Set(string key, string? value)
     {
-        var row = _rows[key]; row.Value.Text = value ?? "—";
+        if (!_rows.TryGetValue(key, out var row)) return;
+        row.Value.Text = value ?? "—";
         row.Row.Visibility = value is not null || _sampler.Options.ShowUnavailable ? Visibility.Visible : Visibility.Collapsed;
         if (value is null) ToolTipService.SetToolTip(row.Row, T("Monitor.Unavailable")); else ToolTipService.SetToolTip(row.Row, null);
     }
@@ -151,11 +174,11 @@ public sealed class SystemMonitorWidgetContent : UserControl, IWidgetContent, IW
         Set("GpuPower", snapshot.Sensors?.GpuPower is { } gp ? $"{gp:F0} W" : null);
         Set("GpuFrequency", snapshot.Sensors?.GpuMhz is { } gc ? $"{gc:F0} MHz" : null);
         Set("CpuFan", null); Set("GpuFan", null);
-        _icons["CpuLoad"].Update(snapshot.CpuLoad); _icons["GpuLoad"].Update(snapshot.GpuLoad);
+        UpdateIcon("CpuLoad", snapshot.CpuLoad); UpdateIcon("GpuLoad", snapshot.GpuLoad);
         UpdateTemperature("CpuTemperature", snapshot.Sensors?.CpuTemperature, "MonitorCpu", 90, 100);
         UpdateTemperature("GpuTemperature", snapshot.Sensors?.GpuTemperature, "MonitorGpu", 80, 90);
-        _icons["CpuFrequency"].Update(snapshot.CpuMhz); _icons["GpuFrequency"].Update(snapshot.Sensors?.GpuMhz);
-        _icons["CpuPower"].Update(snapshot.Sensors?.CpuPower); _icons["GpuPower"].Update(snapshot.Sensors?.GpuPower);
+        UpdateIcon("CpuFrequency", snapshot.CpuMhz); UpdateIcon("GpuFrequency", snapshot.Sensors?.GpuMhz);
+        UpdateIcon("CpuPower", snapshot.Sensors?.CpuPower); UpdateIcon("GpuPower", snapshot.Sensors?.GpuPower);
         Set("Memory", Capacity(snapshot.MemoryUsed, snapshot.MemoryTotal)); Set("Vram", Capacity(snapshot.VramUsed, snapshot.VramTotal));
         Set("Upload", Rate(snapshot.UploadBytes)); Set("Download", Rate(snapshot.DownloadBytes));
         Set("IP", snapshot.NetworkAddress);
@@ -163,18 +186,21 @@ public sealed class SystemMonitorWidgetContent : UserControl, IWidgetContent, IW
         _gpuName.Text = snapshot.Gpus.FirstOrDefault(d => d.Id == snapshot.GpuId)?.Name ?? T("Monitor.Unavailable");
         _networkName.Text = snapshot.Networks.FirstOrDefault(d => d.Id == snapshot.NetworkId)?.Name ?? T("Monitor.Unavailable");
         ToolTipService.SetToolTip(_gpuName, _gpuName.Text); ToolTipService.SetToolTip(_networkName, _networkName.Text);
-        ToolTipService.SetToolTip(_rows["GpuLoad"].Row, _gpuName.Text);
-        ToolTipService.SetToolTip(_rows["Upload"].Row, _networkName.Text);
+        if (_rows.TryGetValue("GpuLoad", out var gpuRow)) ToolTipService.SetToolTip(gpuRow.Row, _gpuName.Text);
+        if (_rows.TryGetValue("Upload", out var networkRow)) ToolTipService.SetToolTip(networkRow.Row, _networkName.Text);
         _status.Text = snapshot.Warmup ? T("Monitor.Warmup") : snapshot.DeviceFallback ? T("Monitor.DeviceFallback") : "";
         _status.Visibility = string.IsNullOrEmpty(_status.Text) ? Visibility.Collapsed : Visibility.Visible;
     }
+    private void UpdateIcon(string key, double? value) { if (_icons.TryGetValue(key, out var icon)) icon.Update(value); }
     private void UpdateBar(string key, ulong? used, ulong? total)
     {
-        var bar = _bars[key]; bar.Visibility = used.HasValue && total is > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (!_bars.TryGetValue(key, out var bar)) return;
+        bar.Visibility = used.HasValue && total is > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (used.HasValue && total is > 0) bar.Value = Math.Clamp(used.Value / (double)total.Value * 100, 0, 100);
     }
     private void UpdateTemperature(string key, double? temperature, string prefix, double warning, double critical)
     {
+        if (!_icons.ContainsKey(key)) return;
         if (double.TryParse(Config.Metadata.GetValueOrDefault(prefix + "Warning"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double w) && w is > 0 and < 150) warning = w;
         if (double.TryParse(Config.Metadata.GetValueOrDefault(prefix + "Critical"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double c) && c > warning && c < 150) critical = c;
         if (critical <= warning) { warning = prefix == "MonitorCpu" ? 90 : 80; critical = prefix == "MonitorCpu" ? 100 : 90; }
@@ -198,13 +224,17 @@ public sealed class SystemMonitorWidgetContent : UserControl, IWidgetContent, IW
     {
         if (!DispatcherQueue.HasThreadAccess) { DispatcherQueue.TryEnqueue(SettingsChanged); return; }
         if (_disposed) return;
-        _sampler.Options = SystemMonitorOptions.Read(Config);
-        if (_latest is not null) Render(_latest);
+        var options = SystemMonitorOptions.Read(Config);
+        bool changed = options.Metrics != _sampler.Options.Metrics;
+        if (changed) { _sampler.Stop(); _latest = null; }
+        _sampler.Options = options;
+        if (changed) { Build(); UpdateSampling(); }
+        else if (_latest is not null) Render(_latest);
     }
     private void UpdateSampling()
     {
         if (_disposed || !_initialized) return;
-        if (_visible && _revealed && !_collapsed) { _visibleSince = DateTimeOffset.Now; _sampler.Start(); } else _sampler.Stop();
+        if (_visible && _revealed && !_collapsed && _sampler.Options.Metrics != 0) { _visibleSince = DateTimeOffset.Now; _sampler.Start(); } else _sampler.Stop();
     }
     public Task InitializeAsync() { _initialized = true; UpdateSampling(); return Task.CompletedTask; }
     public Task RefreshAsync() { SettingsChanged(); return Task.CompletedTask; }
@@ -212,8 +242,8 @@ public sealed class SystemMonitorWidgetContent : UserControl, IWidgetContent, IW
     public void OnActivated() { }
     public void OnDeactivated() { }
     public void OnWindowVisibilityChanged(bool visible) { _visible = visible; if (!visible) _revealed = false; UpdateSampling(); }
-    public void OnWindowRevealCompleted() { _revealed = true; UpdateSampling(); }
-    public void OnCompactStateChanged(bool collapsed) { _collapsed = collapsed; UpdateSampling(); }
+    public void OnWindowRevealCompleted() { _revealed = true; UpdateSampling(); _layoutChanged?.Invoke(); }
+    public void OnCompactStateChanged(bool collapsed) { _collapsed = collapsed; UpdateSampling(); if (!collapsed) _layoutChanged?.Invoke(); }
     public void Dispose()
     {
         if (_disposed) return; _disposed = true; _sampler.Dispose();
@@ -221,5 +251,6 @@ public sealed class SystemMonitorWidgetContent : UserControl, IWidgetContent, IW
         _localization.LanguageChanged -= LanguageChanged;
         if (_settings is not null) _settings.SettingsChanged -= SettingsChanged;
         _showFlyout = null;
+        _layoutChanged = null;
     }
 }

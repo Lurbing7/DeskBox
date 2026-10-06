@@ -1109,7 +1109,7 @@ IsHideAnimationRunning = true;
         if (content is SystemMonitorWidgetContent monitor)
         {
             _lastMonitorPosition = null;
-            monitor.AttachHost((flyout, target) => ShowFlyoutWithInteraction(flyout, target));
+            monitor.AttachHost((flyout, target) => ShowFlyoutWithInteraction(flyout, target), QueueMonitorNaturalSize);
         }
         if (content is FileSurfaceContent fileSurface)
         {

@@ -222,6 +222,8 @@ public abstract partial class WidgetWindowBase : Window
     /// <summary>Called when resize starts (after elevate).</summary>
     protected virtual void OnResizeStart() { }
 
+    protected virtual RectInt32 ConstrainInteractiveResizeBounds(RectInt32 bounds) => bounds;
+
     /// <summary>Called whenever the compact/capsule visual state changes.</summary>
     protected virtual void OnCompactVisualStateChanged(bool collapsed) { }
 

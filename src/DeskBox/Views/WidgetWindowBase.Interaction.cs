@@ -574,7 +574,7 @@ public abstract partial class WidgetWindowBase
 
         var proposed = new RectInt32(newX, newY, newWidth, newHeight);
         var snapped = App.Current.ResizeGuideOverlay.UpdateGuidesAndSnap(proposed, ResizeDirection);
-        return AnchorExpandedResizeBounds(snapped);
+        return AnchorExpandedResizeBounds(ConstrainInteractiveResizeBounds(snapped));
     }
 
     private void CommitInteractiveResizeBounds()

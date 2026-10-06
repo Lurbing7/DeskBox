@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DeskBox · 时间卡片布局预览</title>
+  <style>
+    :root { font-family: "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", sans-serif; color: #202020; background: #f5f5f5; font-synthesis: none; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 1040px; margin: 0 auto; padding: 40px 24px; }
+    h1 { font-size: 24px; line-height: 1.4; font-weight: 600; margin: 0 0 8px; }
+    .intro { color: #606060; font-size: 14px; margin: 0 0 28px; line-height: 1.6; }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 24px; }
+    .stage { min-height: 460px; border: 1px solid #dedede; border-radius: 8px; background: #e9e7e4; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 28px 16px; gap: 20px; overflow: hidden; }
+    .clock-card { --card-width: 320px; --card-height: 260px; --time-size: 57.5px; --ink: #fff; --shade: .22; position: relative; width: var(--card-width); height: var(--card-height); flex: none; max-width: 100%; overflow: hidden; border-radius: 8px; background: #263438; box-shadow: 0 5px 18px #0000001a; color: var(--ink); }
+    .scenery, .photo, .scrim { position: absolute; inset: 0; }
+    .scenery { width: 100%; height: 100%; }
+    .photo { background-size: cover; background-position: center; display: none; }
+    .scrim { background: rgba(0,0,0,var(--shade)); }
+    .clock-content { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; }
+    .time { font-size: var(--time-size); font-weight: 600; line-height: 1.16; font-variant-numeric: tabular-nums; letter-spacing: normal; margin: 0 0 10px; }
+    .calendar-info { padding: 5px 10px; border-radius: 4px; }
+    .date-pair { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--date-size, 14px); line-height: 20px; }
+    .traditional-date { display: inline-flex; align-items: center; gap: 8px; }
+    .date-separator { font-weight: 400; }
+    .date-value { font-weight: 400; font-variant-numeric: tabular-nums; }
+    .weekday { font-size: 14px; line-height: 20px; margin-top: 10px; }
+    .stage-caption { font-size: 12px; color: #595959; margin: 0; text-align: center; line-height: 1.6; }
+    .controls { background: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #e1e1e1; align-self: start; }
+    h2 { margin: 0 0 20px; font-size: 16px; font-weight: 600; }
+    .field { display: grid; gap: 8px; margin-bottom: 18px; font-size: 14px; }
+    select, input[type="date"], input[type="time"], button { font: inherit; min-width: 0; width: 100%; min-height: 34px; border: 1px solid #d1d1d1; border-bottom-color: #8c8c8c; border-radius: 4px; background: #fff; color: #202020; padding: 6px 10px; }
+    button { cursor: pointer; }
+    button:hover { background: #f5f5f5; }
+    :focus-visible { outline: 2px solid #0067c0; outline-offset: 3px; }
+    input[type="range"] { width: 100%; accent-color: #0067c0; }
+    input[type="file"] { width: 100%; font-size: 12px; }
+    .check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 0 0 18px; }
+    input[type="checkbox"] { accent-color: #0067c0; width: 16px; height: 16px; margin: 0; }
+    .hint { font-size: 12px; line-height: 1.7; color: #666; margin: 14px 0 0; }
+    .below { font-size: 13px; line-height: 1.8; color: #606060; margin-top: 20px; }
+    .clock-card[data-mode="light"] { --ink: #172327; --shade: 0; background: #c6d3cf; }
+    .clock-card[data-mode="light"] .scenery { filter: brightness(1.9) saturate(.55); opacity: .5; }
+    .clock-card[data-mode="light"] .scrim { background: rgba(255,255,255,.47); }
+    .clock-card[data-mode="photo"] .scenery { display: none; }
+    .clock-card[data-mode="photo"] .photo { display: block; }
+    .clock-card[data-mode="photo"] .calendar-info, .clock-card[data-mode="photo"] .time { background: rgba(0,0,0,.58); padding: 4px 10px; border-radius: 4px; }
+    @media (max-width: 740px) { main { padding: 24px 16px; } .workspace { grid-template-columns: 1fr; } .stage { min-height: 380px; } .controls { width: 100%; } }
+    @media (forced-colors: active) { .clock-card { color: CanvasText; background: Canvas; border: 1px solid CanvasText; } .scenery,.photo,.scrim { display: none !important; } .calendar-info,.time { background: transparent !important; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>时间卡片 · 居中布局</h1>
+    <p class="intro">时间保持现有字体样式；阳历年月日与干支年农历日期并排，用“/”分开，星期放在最后。</p>
+    <div class="workspace">
+      <section class="stage" aria-label="时间卡片预览区域">
+        <article class="clock-card" id="card" data-mode="dark" aria-label="时间与日期卡片">
+          <svg class="scenery" viewBox="0 0 640 520" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="#203637"/><stop offset="1" stop-color="#79817b"/></linearGradient><linearGradient id="land" x2="0" y2="1"><stop stop-color="#414c3b"/><stop offset="1" stop-color="#152c2d"/></linearGradient></defs>
+            <path fill="url(#sky)" d="M0 0h640v520H0z"/>
+            <path fill="#667068" d="M0 272L140 143l145 138L460 112l180 185v223H0z"/>
+            <path fill="#46564f" d="M0 330l168-154 118 177 95-91 259 92v166H0z"/>
+            <path fill="url(#land)" d="M0 386q139-65 320 18t320-64v180H0z"/>
+            <path fill="#aeaa90" opacity=".35" d="M278 520q126-86 41-121 107 45 20 121z"/>
+          </svg>
+          <div class="photo" id="photo" aria-hidden="true"></div><div class="scrim" aria-hidden="true"></div>
+          <div class="clock-content">
+            <div class="time" id="time">11:40</div>
+            <div class="calendar-info">
+              <div class="date-pair" aria-label="阳历与农历日期">
+                <span class="date-value" id="solar">2026年10月6日</span>
+                <span class="traditional-date"><span class="date-separator" aria-hidden="true">/</span><span class="date-value" id="lunar">加载中</span></span>
+              </div>
+              <div class="weekday" id="weekday">星期二</div>
+            </div>
+          </div>
+        </article>
+        <p class="stage-caption"><span id="sizeText">320 × 260</span> 逻辑像素 · 背景为布局示意<br>可选择本地照片查看壁纸效果</p>
+      </section>
+      <aside class="controls" aria-label="预览选项">
+        <h2>预览选项</h2>
+        <label class="field">背景<select id="background"><option value="dark">深色风景</option><option value="light">浅色风景</option><option value="photo" disabled id="photoOption">本地图片</option></select></label>
+        <label class="field">选择背景图片<input id="imageInput" type="file" accept="image/*"></label>
+        <label class="field">卡片宽度<input id="width" type="range" min="260" max="420" step="10" value="320"></label>
+        <label class="field">预览日期<input id="date" type="date" min="1901-01-01" max="2100-12-31" value="2026-10-06"></label>
+        <label class="field">预览时间<input id="timeInput" type="time" value="11:40"></label>
+        <label class="check"><input id="live" type="checkbox">使用当前日期和时间</label>
+        <button id="reset" type="button">恢复默认预览</button>
+        <p class="hint">只调整信息排列。背景对比度在样板中使用示意衬底，正式版本沿用现有自动取色逻辑。图片只在本机预览。</p>
+      </aside>
+    </div>
+    <p class="below">原生时间卡片已按此布局接入。本页保留为布局样板，实际效果以 DeskBox 卡片为准。</p>
+  </main>
+  <script>
+    'use strict';
+    const byId = id => document.getElementById(id);
+    const chineseDays = ['初一','初二','初三','初四','初五','初六','初七','初八','初九','初十','十一','十二','十三','十四','十五','十六','十七','十八','十九','二十','廿一','廿二','廿三','廿四','廿五','廿六','廿七','廿八','廿九','三十'];
+    let objectUrl = null;
+    function lunarDate(date) {
+      try {
+        const formatter = new Intl.DateTimeFormat('zh-CN-u-ca-chinese', {year:'numeric', month:'long', day:'numeric'});
+        if (formatter.resolvedOptions().calendar !== 'chinese') return '浏览器不支持';
+        const parts = formatter.formatToParts(date);
+        const yearName = parts.find(part => part.type === 'yearName')?.value;
+        let month = parts.find(part => part.type === 'month')?.value;
+        const day = Number(parts.find(part => part.type === 'day')?.value);
+        if (!yearName || !month || !Number.isInteger(day) || day < 1 || day > 30) return '日期不可用';
+        month = month.replace('十一月','冬月').replace('十二月','腊月');
+        return yearName + '年' + month + chineseDays[day - 1];
+      } catch { return '日期不可用'; }
+    }
+    function renderDate() {
+      const live = byId('live').checked;
+      byId('date').disabled = byId('timeInput').disabled = live;
+      const date = live ? new Date() : new Date(byId('date').value + 'T12:00:00');
+      if (!Number.isFinite(date.getTime())) return;
+      byId('time').textContent = live ? new Intl.DateTimeFormat('zh-CN', {hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).format(date) : (byId('timeInput').value || '11:40');
+      byId('solar').textContent = date.getFullYear() + '年' + (date.getMonth() + 1) + '月' + date.getDate() + '日';
+      byId('lunar').textContent = lunarDate(date);
+      byId('weekday').textContent = new Intl.DateTimeFormat('zh-CN', {weekday:'long'}).format(date);
+    }
+    function resizeCard() {
+      const available = document.querySelector('.stage').clientWidth - 34;
+      const width = Math.min(Number(byId('width').value), available);
+      const height = 260;
+      const fontSize = Math.round(Math.max(38, Math.min(78, width*.18, height*.28))*2)/2;
+      byId('card').style.setProperty('--card-width', width + 'px');
+      byId('card').style.setProperty('--card-height', height + 'px');
+      byId('card').style.setProperty('--time-size', fontSize + 'px');
+      byId('card').style.setProperty('--date-size', Math.min(14, Math.max(12, width*.044)) + 'px');
+      byId('sizeText').textContent = Math.round(width) + ' × ' + height;
+    }
+    byId('background').addEventListener('change', () => byId('card').dataset.mode = byId('background').value);
+    byId('width').addEventListener('input', resizeCard);
+    ['date','timeInput','live'].forEach(id => byId(id).addEventListener('change', renderDate));
+    byId('imageInput').addEventListener('change', () => {
+      const file = byId('imageInput').files[0];
+      if (!file || !file.type.startsWith('image/')) return;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = URL.createObjectURL(file);
+      byId('photo').style.backgroundImage = `url("${objectUrl}")`;
+      byId('photoOption').disabled = false;
+      byId('background').value = 'photo';
+      byId('card').dataset.mode = 'photo';
+    });
+    byId('reset').addEventListener('click', () => {
+      byId('live').checked = false; byId('date').value = '2026-10-06'; byId('timeInput').value = '11:40'; byId('width').value = '320';
+      byId('background').value = 'dark'; byId('card').dataset.mode = 'dark'; renderDate(); resizeCard();
+    });
+    window.addEventListener('resize', resizeCard);
+    window.addEventListener('pagehide', () => { if (objectUrl) URL.revokeObjectURL(objectUrl); });
+    renderDate(); resizeCard();
+    setInterval(() => { if (byId('live').checked) renderDate(); }, 1000);
+  </script>
+</body>
+</html>

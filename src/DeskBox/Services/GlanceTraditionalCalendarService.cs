@@ -14,16 +14,6 @@ namespace DeskBox.Services;
 /// </summary>
 internal sealed class GlanceTraditionalCalendarService
 {
-    private static readonly string[] ChineseMonthNames =
-        ["", "正月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "冬月", "腊月"];
-    private static readonly string[] ChineseDayNames =
-    [
-        "", "初一", "初二", "初三", "初四", "初五", "初六", "初七", "初八", "初九", "初十",
-        "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十",
-        "廿一", "廿二", "廿三", "廿四", "廿五", "廿六", "廿七", "廿八", "廿九", "三十"
-    ];
-    private static readonly string[] HeavenlyStems = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"];
-    private static readonly string[] EarthlyBranches = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
     private static readonly string[] IndianMonthNames =
         ["", "चैत्र", "वैशाख", "ज्येष्ठ", "आषाढ़", "श्रावण", "भाद्र", "आश्विन", "कार्तिक", "अग्रहायण", "पौष", "माघ", "फाल्गुन"];
     private static readonly string[] BanglaMonthNames =
@@ -136,38 +126,14 @@ internal sealed class GlanceTraditionalCalendarService
 
     private static string FormatChineseDay(DateOnly date, bool useTraditional)
     {
-        ChineseDate value = GetChineseDate(date);
-        string text = value.Day == 1
-            ? $"{(value.IsLeapMonth ? "闰" : string.Empty)}{ChineseMonthNames[value.Month]}"
-            : ChineseDayNames[value.Day];
+        string text = GlanceChineseCalendarFormatter.FormatDay(date);
         return useTraditional ? ChineseTextConverter.ToTraditional(text) : text;
     }
 
     private static string FormatChineseTitle(DateOnly date, bool useTraditional)
     {
-        ChineseDate value = GetChineseDate(date);
-        string cyclicalYear = $"{HeavenlyStems[(value.SexagenaryYear - 1) % 10]}{EarthlyBranches[(value.SexagenaryYear - 1) % 12]}年";
-        string month = $"{(value.IsLeapMonth ? "闰" : string.Empty)}{ChineseMonthNames[value.Month]}";
-        string text = $"{cyclicalYear} {month}{ChineseDayNames[value.Day]}";
+        string text = GlanceChineseCalendarFormatter.FormatTitle(date);
         return useTraditional ? ChineseTextConverter.ToTraditional(text) : text;
-    }
-
-    private static ChineseDate GetChineseDate(DateOnly date)
-    {
-        var calendar = new ChineseLunisolarCalendar();
-        DateTime value = date.ToDateTime(TimeOnly.MinValue);
-        int year = calendar.GetYear(value);
-        int calendarMonth = calendar.GetMonth(value);
-        int leapMonth = calendar.GetLeapMonth(year);
-        bool isLeapMonth = leapMonth > 0 && calendarMonth == leapMonth;
-        int month = leapMonth > 0 && calendarMonth >= leapMonth
-            ? calendarMonth - 1
-            : calendarMonth;
-        return new ChineseDate(
-            month,
-            calendar.GetDayOfMonth(value),
-            isLeapMonth,
-            calendar.GetSexagenaryYear(value));
     }
 
     private static string FormatIndianDay(DateOnly date)
@@ -357,12 +323,6 @@ internal sealed class GlanceTraditionalCalendarService
             }
         });
     }
-
-    private readonly record struct ChineseDate(
-        int Month,
-        int Day,
-        bool IsLeapMonth,
-        int SexagenaryYear);
 
     private readonly record struct TraditionalDate(int Year, int Month, int Day);
 }

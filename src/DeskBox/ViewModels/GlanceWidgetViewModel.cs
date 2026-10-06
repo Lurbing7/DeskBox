@@ -36,6 +36,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     private GlanceImageInfo? _currentImage;
     private string _timeText = string.Empty;
     private string _dateText = string.Empty;
+    private string _centeredDateText = string.Empty;
     private string _compactCalendarDateText = string.Empty;
     private string _weekdayText = string.Empty;
     private string _traditionalCalendarTitle = string.Empty;
@@ -45,6 +46,9 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     private bool _isWindowVisible = true;
     private bool _isCompact;
     private bool _onlineRefreshCompletedForSession;
+    private readonly GlanceDailyRefreshPolicy _dailyRefresh = new();
+    private DateOnly _lastClockDate = DateOnly.FromDateTime(DateTime.Now);
+    private bool IsDailyBing => _settings.BackgroundSource == GlanceBackgroundSource.Bing && _settings.BingDaily;
     private CancellationTokenSource? _onlineRefreshCts;
     private bool _isDisposed;
     private double _availableWidth = 360;
@@ -103,6 +107,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     public GlanceWidgetData Settings => _settings;
     public string TimeText { get => _timeText; private set => SetProperty(ref _timeText, value); }
     public string DateText { get => _dateText; private set => SetProperty(ref _dateText, value); }
+    public string CenteredDateText { get => _centeredDateText; private set => SetProperty(ref _centeredDateText, value); }
     public string CompactCalendarDateText { get => _compactCalendarDateText; private set => SetProperty(ref _compactCalendarDateText, value); }
     public string WeekdayText { get => _weekdayText; private set => SetProperty(ref _weekdayText, value); }
     public string TraditionalCalendarTitle
@@ -159,8 +164,8 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     public string PhotoInfoText => string.Join(" · ", new[] { CurrentImage?.Author, CurrentImage?.License }.Where(value => !string.IsNullOrWhiteSpace(value)));
     public bool HasPhotoInfo => CurrentImage?.IsOnline == true;
     public int ImageCount => _images.Count;
-    public bool CanAdvanceImage => !IsLoading && ImageCount > 1;
-    public bool CanPauseRotation => _settings.RotationIntervalMinutes > 0 && ImageCount > 1;
+    public bool CanAdvanceImage => !IsDailyBing && !IsLoading && ImageCount > 1;
+    public bool CanPauseRotation => !IsDailyBing && _settings.RotationIntervalMinutes > 0 && ImageCount > 1;
     public bool IsCurrentImageOnline => CurrentImage?.IsOnline == true;
     public bool HasCurrentImage => CurrentImage is not null;
     public double BackgroundImageTransparency =>
@@ -201,6 +206,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         : _settings.TimeFontFamily);
     public double TimeFontSize => RoundFontSize(
         Math.Clamp(Math.Min(_availableWidth * 0.18, _availableHeight * 0.28), 38, 78) * _settings.TimeScale);
+    public double CenteredDateFontSize => RoundFontSize(Math.Clamp(_availableWidth * 0.044, 12, 14));
     public double CompactTimeFontSize => RoundFontSize(
         Math.Clamp(Math.Min(_availableWidth * 0.13, _availableHeight * 0.2), 30, 60) * _settings.TimeScale);
     public double CalendarCompactTimeFontSize => RoundFontSize(Math.Clamp(
@@ -303,7 +309,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         if (visible)
         {
             UpdateDateAndTime();
-            if (!_isCompact && IsOnlineSource(_settings.BackgroundSource) && !_onlineRefreshCompletedForSession)
+            if (!_isCompact && IsOnlineSource(_settings.BackgroundSource) && (IsDailyBing || !_onlineRefreshCompletedForSession))
             {
                 _ = RefreshOnlineInBackgroundAsync();
             }
@@ -318,7 +324,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
             CancelOnlineRefresh();
         }
         UpdateTimers();
-        if (!collapsed && _isWindowVisible && IsOnlineSource(_settings.BackgroundSource) && !_onlineRefreshCompletedForSession)
+        if (!collapsed && _isWindowVisible && IsOnlineSource(_settings.BackgroundSource) && (IsDailyBing || !_onlineRefreshCompletedForSession))
         {
             _ = RefreshOnlineInBackgroundAsync();
         }
@@ -326,6 +332,11 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
 
     public void OnWindowRevealCompleted()
     {
+        if (IsDailyBing && _isWindowVisible && !_isCompact)
+        {
+            _ = RefreshOnlineInBackgroundAsync();
+            return;
+        }
         if (_isWindowVisible && !_isCompact &&
             IsOnlineSource(_settings.BackgroundSource) &&
             !_onlineRefreshCompletedForSession &&
@@ -351,6 +362,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         bool oldShowCalendar = ShowCalendar;
         bool oldCompactCalendar = IsCompactCalendarPresentation;
         double oldTimeFontSize = TimeFontSize;
+        double oldCenteredDateFontSize = CenteredDateFontSize;
         double oldCompactTimeFontSize = CompactTimeFontSize;
         double oldCalendarCompactTimeFontSize = CalendarCompactTimeFontSize;
         double oldPanelHeight = CalendarPanelHeight;
@@ -362,6 +374,10 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         if (oldTimeFontSize != TimeFontSize)
         {
             OnPropertyChanged(nameof(TimeFontSize));
+        }
+        if (oldCenteredDateFontSize != CenteredDateFontSize)
+        {
+            OnPropertyChanged(nameof(CenteredDateFontSize));
         }
         if (oldCompactTimeFontSize != CompactTimeFontSize)
         {
@@ -420,6 +436,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
 
     private void AdvanceImage(bool resetRotationTimer)
     {
+        if (IsDailyBing) return;
         if (_images.Count == 0)
         {
             if (IsOnlineSource(_settings.BackgroundSource))
@@ -535,19 +552,21 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     {
         GlanceBackgroundSource previousSource = _settings.BackgroundSource;
         GlanceOnlineImageCategory previousOnlineCategory = _settings.OnlineImageCategory;
+        bool previousDaily = _settings.BingDaily;
         _settings = await _store.LoadAsync();
         if (previousSource != _settings.BackgroundSource ||
-            previousOnlineCategory != _settings.OnlineImageCategory)
+            previousOnlineCategory != _settings.OnlineImageCategory || previousDaily != _settings.BingDaily)
         {
             CancelOnlineRefresh();
             _onlineRefreshCompletedForSession = false;
+            _dailyRefresh.Reset();
         }
         ApplySettingsProperties();
         UpdateDateAndTime();
         await UpdateCalendarAsync();
         await ReloadImagesAsync(refreshOnline: false);
         UpdateTimers();
-        if (IsOnlineSource(_settings.BackgroundSource) && !_onlineRefreshCompletedForSession)
+        if (IsOnlineSource(_settings.BackgroundSource) && (IsDailyBing || !_onlineRefreshCompletedForSession))
         {
             _ = RefreshOnlineInBackgroundAsync();
         }
@@ -563,6 +582,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
                 ? await _imageService.RefreshOnlineImagesAsync(_settings, _lifetimeCts.Token)
                 : await _imageService.GetAvailableImagesAsync(_settings, _lifetimeCts.Token);
             _images = _images.Where(image => File.Exists(image.LocalPath)).ToArray();
+            if (IsDailyBing) _images = _images.OrderByDescending(image => image.PublishedDate).ThenByDescending(image => image.CachedAtUtc).ToArray();
             RaiseImageCollectionProperties();
             if (_images.Count == 0)
             {
@@ -577,6 +597,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
             _currentIndex = previousId is null
                 ? -1
                 : _images.ToList().FindIndex(image => string.Equals(image.Id, previousId, StringComparison.Ordinal));
+            if (IsDailyBing) _currentIndex = 0;
             if (_currentIndex < 0)
             {
                 _currentIndex = _settings.RandomOrder ? Random.Shared.Next(_images.Count) : 0;
@@ -604,11 +625,17 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
 
     private async Task RefreshOnlineInBackgroundAsync()
     {
-        if (_isDisposed)
+        if (_isDisposed || !_isWindowVisible || _isCompact)
         {
             return;
         }
 
+        bool daily = IsDailyBing;
+        if (daily)
+        {
+            if (_onlineRefreshCts is not null || !_dailyRefresh.ShouldRefresh(DateTimeOffset.Now)) return;
+            _dailyRefresh.Begin(DateTimeOffset.Now);
+        }
         CancelOnlineRefresh();
         GlanceBackgroundSource requestedSource = _settings.BackgroundSource;
         GlanceOnlineImageCategory requestedCategory = _settings.OnlineImageCategory;
@@ -620,7 +647,8 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         var refreshSettings = new GlanceWidgetData
         {
             BackgroundSource = requestedSource,
-            OnlineImageCategory = requestedCategory
+            OnlineImageCategory = requestedCategory,
+            BingDaily = daily
         };
         var refreshCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCts.Token);
         _onlineRefreshCts = refreshCts;
@@ -632,11 +660,12 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
 
         try
         {
+            DateTimeOffset refreshStartedUtc = DateTimeOffset.UtcNow;
             IReadOnlyList<GlanceImageInfo> refreshed = await _imageService.RefreshOnlineImagesAsync(
                 refreshSettings,
                 refreshCts.Token);
             if (_isDisposed ||
-                !MatchesOnlineRequest(requestedSource, requestedCategory) ||
+                !MatchesOnlineRequest(requestedSource, requestedCategory) || daily != IsDailyBing ||
                 refreshed.Count == 0)
             {
                 return;
@@ -644,18 +673,25 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
 
             void Apply()
             {
-                if (_isDisposed || !MatchesOnlineRequest(requestedSource, requestedCategory))
+                if (_isDisposed || !MatchesOnlineRequest(requestedSource, requestedCategory) || daily != IsDailyBing || refreshCts.IsCancellationRequested)
                 {
                     return;
                 }
 
                 string? previousId = CurrentImage?.Id;
                 _images = refreshed.Where(image => File.Exists(image.LocalPath)).ToArray();
+                if (daily) _images = _images.OrderByDescending(image => image.PublishedDate).ThenByDescending(image => image.CachedAtUtc).ToArray();
                 RaiseImageCollectionProperties();
                 int existingIndex = previousId is null
                     ? -1
                     : _images.ToList().FindIndex(image => string.Equals(image.Id, previousId, StringComparison.Ordinal));
-                if (existingIndex >= 0)
+                if (daily && _images.Count > 0)
+                {
+                    _currentIndex = 0; CurrentImage = _images[0];
+                    _dailyRefresh.Complete(DateTimeOffset.Now, CurrentImage.PublishedDate,
+                        _imageService.LastSuccessfulDailyBingRefreshUtc >= refreshStartedUtc);
+                }
+                else if (existingIndex >= 0)
                 {
                     _currentIndex = existingIndex;
                 }
@@ -727,6 +763,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         OnPropertyChanged(nameof(ReadabilityOpacity));
         OnPropertyChanged(nameof(TimeFontFamily));
         OnPropertyChanged(nameof(TimeFontSize));
+        OnPropertyChanged(nameof(CenteredDateFontSize));
         OnPropertyChanged(nameof(CompactTimeFontSize));
         OnPropertyChanged(nameof(CalendarCompactTimeFontSize));
         OnPropertyChanged(nameof(CalendarPanelHeight));
@@ -774,6 +811,17 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         DateTime now = DateTime.Now;
         TimeText = FormatTimeText(now, _settings.TimeFormat, culture);
         DateText = FormatDateText(now, culture, _settings.ShowYear);
+        string centeredDate = culture.TwoLetterISOLanguageName == "zh"
+            ? GlanceChineseCalendarFormatter.FormatClockDate(DateOnly.FromDateTime(now), _settings.ShowYear)
+            : DateText;
+        string displayDate = LocalizationService.IsTraditionalChineseCulture(culture.Name)
+            ? ChineseTextConverter.ToTraditional(centeredDate)
+            : centeredDate;
+        if (IsCenteredLayout && CenteredDateText != displayDate)
+        {
+            App.Log($"[GlanceClock] Centered date='{displayDate}' showDate={ShowDate} showYear={ShowYear} showWeekday={ShowWeekday}");
+        }
+        CenteredDateText = displayDate;
         CompactCalendarDateText = FormatCompactCalendarDateText(now, culture);
         WeekdayText = now.ToString("dddd", culture);
     }
@@ -952,7 +1000,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
     private void UpdateClockTimer()
     {
         _clockTimer.Stop();
-        bool needsCalendarClock = _settings.ShowDate ||
+        bool needsCalendarClock = IsDailyBing || _settings.ShowDate ||
             _settings.ShowWeekday ||
             _settings.ShowCalendar ||
             _settings.TraditionalCalendarMode != GlanceTraditionalCalendarMode.None;
@@ -962,7 +1010,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
         }
 
         DateTime now = DateTime.Now;
-        _clockTimer.Interval = _settings.ShowTime
+        _clockTimer.Interval = _settings.ShowTime || IsDailyBing
             ? TimeSpan.FromSeconds(Math.Max(1, 60 - now.Second)) - TimeSpan.FromMilliseconds(now.Millisecond)
             : now.Date.AddDays(1).AddMilliseconds(100) - now;
         _clockTimer.Start();
@@ -976,6 +1024,7 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
             IsPaused ||
             _isDisposed ||
             !GlanceImageAutoRotationEnabled() ||
+            IsDailyBing ||
             _settings.RotationIntervalMinutes <= 0 ||
             _images.Count < 2)
         {
@@ -995,8 +1044,10 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
 
     private void ClockTimer_Tick(DispatcherQueueTimer sender, object args)
     {
-        DateOnly previousDate = DateOnly.FromDateTime(DateTime.Now.AddMinutes(-1));
+        DateOnly previousDate = _lastClockDate;
         DateOnly currentDate = DateOnly.FromDateTime(DateTime.Now);
+        _lastClockDate = currentDate;
+        if (IsDailyBing) _ = RefreshOnlineInBackgroundAsync();
         UpdateDateAndTime();
         if (previousDate != currentDate)
         {
@@ -1121,9 +1172,13 @@ public sealed partial class GlanceWidgetViewModel : ObservableObject, IDisposabl
 
     private void CancelOnlineRefresh()
     {
+        var cancellation = _onlineRefreshCts;
+        if (cancellation is null) return;
+        _onlineRefreshCts = null;
+        _dailyRefresh.Cancel();
         try
         {
-            _onlineRefreshCts?.Cancel();
+            cancellation.Cancel();
         }
         catch
         {

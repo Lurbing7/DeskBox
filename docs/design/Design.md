@@ -1,5 +1,7 @@
 # DeskBox UI Design
 
+2026-10-06 时间卡片居中模式更新：时间、完整阳历年月日 / 干支年农历月日、星期三行居中，年份不单独占行；保留时间字体及字号计算、日期/年份/星期开关。中文双历日期随宽度使用 12–14 DIP、窄空间换行，新增日期行纳入自动对比度；其他布局与原月历不变。HTML 稿已确认，原生视觉/DPI 实机验收待完成，见 [开发记录](../development/2026-10-06-clock-lunar-preview.md)。
+
 字体、密度与监控动态图标后续采用 `.dsh/skills/windows-native-ui/SKILL.md`，官方规范与技能筛选依据在其 references 中。负载扇形、温度警示必须由同一真实快照驱动，不能以固定字形/颜色冒充动态 UI。详见 `docs/design/system-monitor-sensors-and-ui-review.md`；当前实现仍未完成这项视觉要求。
 
 性能监控按用户参考图采用紧凑 CPU/GPU 分块、指标图标和右对齐数值，内存/显存用量条与网络分区；IP 与速率对应同一所选网卡，可选中复制。共享材质不由监控内容覆盖。第二轮记录见 `docs/development/2026-10-02-system-monitor.md`，视觉仍待实机验收。

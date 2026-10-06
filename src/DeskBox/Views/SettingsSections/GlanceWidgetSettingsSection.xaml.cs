@@ -485,6 +485,8 @@ public sealed partial class GlanceWidgetSettingsSection : UserControl
             SelectOption(FontComboBox, _settings.TimeFontFamily ?? string.Empty);
             SelectOption(TimeFormatComboBox, _settings.TimeFormat);
             RandomOrderToggle.IsOn = _settings.RandomOrder;
+            BingDailyToggle.IsOn = _settings.BingDaily;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(BingDailyToggle, Localization.T("Glance.BingDaily"));
             TimeScaleSlider.Value = _settings.TimeScale;
             BackgroundImageTransparencySlider.Value = _settings.BackgroundImageTransparency;
             CalendarImageTransparencySlider.Value = _settings.CalendarImageMaterialTransparency;
@@ -922,6 +924,9 @@ public sealed partial class GlanceWidgetSettingsSection : UserControl
     private async void RandomOrderToggle_Toggled(object sender, RoutedEventArgs e)
         => await SaveAsync(settings => settings.RandomOrder = RandomOrderToggle.IsOn);
 
+    private async void BingDailyToggle_Toggled(object sender, RoutedEventArgs e)
+        => await SaveAsync(settings => settings.BingDaily = BingDailyToggle.IsOn);
+
     private async void ShowPhotoControlsToggle_Toggled(object sender, RoutedEventArgs e)
         => await SaveAsync(settings => settings.ShowPhotoControls = ShowPhotoControlsToggle.IsOn);
 
@@ -1013,6 +1018,8 @@ public sealed partial class GlanceWidgetSettingsSection : UserControl
 
     private void UpdateLocalSourceState()
     {
+        BingDailyCard.Visibility = _settings.BackgroundSource == GlanceBackgroundSource.Bing ? Visibility.Visible : Visibility.Collapsed;
+        RotationComboBox.IsEnabled = RandomOrderToggle.IsEnabled = !(_settings.BackgroundSource == GlanceBackgroundSource.Bing && _settings.BingDaily);
         OnlineImageCategoryCard.Visibility = _settings.BackgroundSource == GlanceBackgroundSource.Online
             ? Visibility.Visible
             : Visibility.Collapsed;

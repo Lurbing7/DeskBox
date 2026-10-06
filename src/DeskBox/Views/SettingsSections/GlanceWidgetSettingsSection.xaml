@@ -151,6 +151,9 @@
                                 ValueChanged="BackgroundImageTransparencySlider_ValueChanged" />
                         </StackPanel>
                     </toolkit:SettingsCard>
+                    <toolkit:SettingsCard x:Name="BingDailyCard" HorizontalContentAlignment="Right" svc:Localized.HeaderKey="Glance.BingDaily">
+                        <ToggleSwitch x:Name="BingDailyToggle" AutomationProperties.AutomationId="GlanceBingDaily" MinWidth="0" OffContent="" OnContent="" Toggled="BingDailyToggle_Toggled" />
+                    </toolkit:SettingsCard>
                     <toolkit:SettingsCard HorizontalContentAlignment="Right" svc:Localized.HeaderKey="Glance.Rotation.Title">
                         <ComboBox x:Name="RotationComboBox" Width="220" SelectionChanged="RotationComboBox_SelectionChanged" />
                     </toolkit:SettingsCard>

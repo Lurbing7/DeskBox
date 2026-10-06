@@ -23,19 +23,21 @@ internal sealed partial class SystemMonitorPdhQuery : IDisposable
     [LibraryImport("pdh.dll", EntryPoint = "PdhCloseQuery")]
     private static partial uint Close(nint query);
 
-    public SystemMonitorPdhQuery()
+    public SystemMonitorPdhQuery(int metrics = DeskBox.Services.SystemMonitorSelection.All)
     {
+        bool Has(string key) => DeskBox.Services.SystemMonitorSelection.Has(metrics, key);
+        if (!Has("CpuLoad") && !Has("CpuFrequency") && !Has("GpuLoad") && !Has("Vram")) return;
         if (Open(null, 0, out _query) != 0) return;
-        AddCounter("cpu", @"\Processor(_Total)\% Processor Time");
-        AddCounter("frequency", @"\Processor Information(_Total)\Processor Frequency");
-        AddCounter("gpu", @"\GPU Engine(*)\Utilization Percentage");
-        AddCounter("vram", @"\GPU Adapter Memory(*)\Dedicated Usage");
+        if (Has("CpuLoad")) AddCounter("cpu", @"\Processor(_Total)\% Processor Time");
+        if (Has("CpuFrequency")) AddCounter("frequency", @"\Processor Information(_Total)\Processor Frequency");
+        if (Has("GpuLoad")) AddCounter("gpu", @"\GPU Engine(*)\Utilization Percentage");
+        if (Has("Vram")) AddCounter("vram", @"\GPU Adapter Memory(*)\Dedicated Usage");
     }
     private void AddCounter(string name, string path)
     {
         if (Add(_query, path, 0, out nint counter) == 0) _counters[name] = counter;
     }
-    public bool Sample() => _query != 0 && Collect(_query) == 0;
+    public bool Sample() => _query == 0 || Collect(_query) == 0;
     public double? Read(string name)
     {
         return _counters.TryGetValue(name, out nint counter) && Value(counter, 0x200 | 0x8000, out _, out var value) == 0 &&

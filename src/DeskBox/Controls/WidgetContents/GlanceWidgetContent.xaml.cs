@@ -77,6 +77,7 @@ public sealed partial class GlanceWidgetContent : UserControl
     private void UserControl_Loaded(object sender, RoutedEventArgs e)
     {
         _isLoaded = true;
+        StartTextContrast();
         _hasPendingAvailableSize = false;
         _viewModel.UpdateAvailableSize(ActualWidth, ActualHeight);
         ApplyBackgroundBrushOptions();
@@ -92,6 +93,7 @@ public sealed partial class GlanceWidgetContent : UserControl
     private void UserControl_Unloaded(object sender, RoutedEventArgs e)
     {
         _isLoaded = false;
+        StopTextContrast();
         CancelPaletteUpdate();
         _loadingDelayTimer.Stop();
         _imageResizeDelayTimer.Stop();
@@ -130,6 +132,7 @@ public sealed partial class GlanceWidgetContent : UserControl
 
         _hasPendingAvailableSize = false;
         _viewModel.UpdateAvailableSize(_pendingAvailableWidth, _pendingAvailableHeight);
+        QueueTextContrast();
     }
 
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -138,6 +141,11 @@ public sealed partial class GlanceWidgetContent : UserControl
         {
             return;
         }
+
+        if (e.PropertyName is nameof(GlanceWidgetViewModel.CurrentImagePath) or nameof(GlanceWidgetViewModel.ImageFit)
+            or nameof(GlanceWidgetViewModel.ImageFocus) or nameof(GlanceWidgetViewModel.BackgroundImageOpacity)
+            or nameof(GlanceWidgetViewModel.Settings) or nameof(GlanceWidgetViewModel.ReadabilityOpacity)
+            or nameof(GlanceWidgetViewModel.CenteredDateText)) QueueTextContrast();
 
         if (e.PropertyName == nameof(GlanceWidgetViewModel.CurrentImagePath))
         {
@@ -193,6 +201,7 @@ public sealed partial class GlanceWidgetContent : UserControl
             nameof(GlanceWidgetViewModel.CalendarImageMaterialTransparency))
         {
             ApplyCalendarMaterial();
+            QueueTextContrast();
             if (e.PropertyName == nameof(GlanceWidgetViewModel.CalendarMaterialMode))
             {
                 QueueCalendarImagePaletteUpdate(_viewModel.CurrentImagePath);
@@ -206,6 +215,7 @@ public sealed partial class GlanceWidgetContent : UserControl
         {
             ApplyImageAwareTheme();
             ApplyCalendarMaterial();
+            QueueTextContrast();
         }
     }
 

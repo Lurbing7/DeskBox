@@ -39,6 +39,7 @@ public sealed class GlanceImageService
     private readonly string _catalogPath;
     private readonly HttpClient _httpClient;
     private readonly Func<bool> _canUseBackgroundNetwork;
+    internal DateTimeOffset LastSuccessfulDailyBingRefreshUtc { get; private set; }
 
     public GlanceImageService()
         : this(
@@ -113,7 +114,8 @@ public sealed class GlanceImageService
         List<GlanceImageInfo> catalog = await LoadCatalogAsync(cancellationToken);
         return catalog
             .Where(image => MatchesOnlineSource(image, provider, category) && IsUsableFile(image.LocalPath))
-            .OrderByDescending(image => image.CachedAtUtc)
+            .OrderByDescending(image => image.PublishedDate)
+            .ThenByDescending(image => image.CachedAtUtc)
             .Take(MaximumCacheItemsPerCategory)
             .ToArray();
     }
@@ -145,6 +147,9 @@ public sealed class GlanceImageService
         {
             return Task.FromResult<IReadOnlyList<GlanceImageInfo>>([]);
         }
+
+        if (settings.BackgroundSource == GlanceBackgroundSource.Bing && settings.BingDaily)
+            return RefreshDailyBingAsync(cancellationToken);
 
         return RefreshOnlineImagesAsync(
             GetOnlineProvider(settings.BackgroundSource),
@@ -345,6 +350,45 @@ public sealed class GlanceImageService
         }
     }
 
+    private async Task<IReadOnlyList<GlanceImageInfo>> RefreshDailyBingAsync(CancellationToken token)
+    {
+        if (!_canUseBackgroundNetwork())
+        {
+            App.Log("[GlanceImageService] Daily Bing refresh deferred by background network policy.");
+            return await LoadCachedOnlineImagesAsync(GlanceOnlineImageProvider.Bing, GlanceOnlineImageCategory.Featured, token);
+        }
+        await OnlineRefreshGate.WaitAsync(token);
+        try
+        {
+            var cached = await LoadCatalogAsync(token);
+            var remote = await QueryBingPicturesAsync(token, latestOnly: true);
+            App.Log($"[GlanceImageService] Daily Bing archive items={remote.Count} published={remote.FirstOrDefault()?.PublishedDate:yyyy-MM-dd}");
+            foreach (var candidate in remote)
+            {
+                var existing = cached.FirstOrDefault(image => image.Id == candidate.Id && IsUsableFile(image.LocalPath));
+                if (existing is not null) existing.PublishedDate = candidate.PublishedDate;
+                else
+                {
+                    Directory.CreateDirectory(_imageDirectory);
+                    var downloaded = await DownloadAsync(candidate, token);
+                    if (downloaded is not null) { cached.RemoveAll(image => image.Id == downloaded.Id); cached.Add(downloaded); }
+                }
+            }
+            await TrimAndSaveCatalogAsync(cached, token);
+            if (remote.Any(candidate => cached.Any(image => image.Id == candidate.Id && IsUsableFile(image.LocalPath))))
+                LastSuccessfulDailyBingRefreshUtc = DateTimeOffset.UtcNow;
+            return cached.Where(image => image.OnlineProvider == GlanceOnlineImageProvider.Bing && IsUsableFile(image.LocalPath))
+                .OrderByDescending(image => image.PublishedDate).ThenByDescending(image => image.CachedAtUtc).ToArray();
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            App.Log($"[GlanceImageService] Daily Bing refresh failed: {ex.GetType().Name}");
+            return await LoadCachedOnlineImagesAsync(GlanceOnlineImageProvider.Bing, GlanceOnlineImageCategory.Featured, token);
+        }
+        finally { OnlineRefreshGate.Release(); }
+    }
+
     private Task<IReadOnlyList<GlanceImageInfo>> QueryOnlinePicturesAsync(
         GlanceOnlineImageProvider provider,
         GlanceOnlineImageCategory category,
@@ -356,14 +400,14 @@ public sealed class GlanceImageService
     }
 
     private async Task<IReadOnlyList<GlanceImageInfo>> QueryBingPicturesAsync(
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool latestOnly = false)
     {
         var results = new List<GlanceImageInfo>();
-        for (int batch = 0; batch < BingArchiveBatchCount; batch++)
+        for (int batch = 0; batch < (latestOnly ? 1 : BingArchiveBatchCount); batch++)
         {
             int index = batch * BingArchiveBatchSize;
             string archiveUrl = "https://cn.bing.com/HPImageArchive.aspx?format=js" +
-                $"&idx={index}&n={BingArchiveBatchSize}&mkt=zh-CN";
+                $"&idx={index}&n={(latestOnly ? 1 : BingArchiveBatchSize)}&mkt=zh-CN";
             using JsonDocument document = await GetJsonAsync(archiveUrl, cancellationToken);
             if (!document.RootElement.TryGetProperty("images", out JsonElement images))
             {
@@ -399,6 +443,8 @@ public sealed class GlanceImageService
                     RemoteImageUrl = ToAbsoluteBingUrl(relativeImageUrl),
                     PixelWidth = 1920,
                     PixelHeight = 1080,
+                    PublishedDate = DateOnly.TryParseExact(GetString(image, "startdate"), "yyyyMMdd",
+                        System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date) ? date : null,
                     OnlineCategory = GlanceOnlineImageCategory.Featured,
                     OnlineProvider = GlanceOnlineImageProvider.Bing
                 });
@@ -577,7 +623,8 @@ public sealed class GlanceImageService
             .Where(image => IsUsableFile(image.LocalPath))
             .GroupBy(image => new { image.OnlineProvider, image.OnlineCategory })
             .SelectMany(group => group
-                .OrderByDescending(image => image.CachedAtUtc)
+                .OrderByDescending(image => image.PublishedDate)
+                .ThenByDescending(image => image.CachedAtUtc)
                 .Take(MaximumCacheItemsPerCategory))
             .OrderByDescending(image => image.CachedAtUtc)
             .Take(MaximumCacheItemsTotal)
