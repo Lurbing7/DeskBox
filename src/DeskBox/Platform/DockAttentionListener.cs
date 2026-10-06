@@ -102,10 +102,15 @@ internal sealed partial class DockAttentionListener : IDisposable
         if (!IsWindow(window)) return false;
         GetWindowThreadProcessId(window, out uint processId);
         string executable = System.IO.Path.GetFileName(ExecutableForWindow(window) ?? "");
-        if (executable.Equals("Weixin.exe", StringComparison.OrdinalIgnoreCase) || executable.Equals("WeChat.exe", StringComparison.OrdinalIgnoreCase))
+        bool isQq = executable.Equals("QQ.exe", StringComparison.OrdinalIgnoreCase);
+        if (isQq || executable.Equals("Weixin.exe", StringComparison.OrdinalIgnoreCase) || executable.Equals("WeChat.exe", StringComparison.OrdinalIgnoreCase))
         {
+            string tray = isQq ? "qq-tray" : "wechat-tray";
+            diagnostic?.Invoke($"{tray} foreground-permission={AllowSetForegroundWindow(processId)}");
             var messages = new List<string>();
-            bool invoked = await Task.Run(() => DockWeChatTrayActivation.TryInvoke(processId, messages.Add));
+            bool invoked = await Task.Run(() => isQq
+                ? DockQqTrayActivation.TryInvoke(processId, messages.Add)
+                : DockWeChatTrayActivation.TryInvoke(processId, messages.Add));
             foreach (string message in messages) diagnostic?.Invoke(message);
             if (!invoked) return false;
             for (int attempt = 0; attempt < 20; attempt++)
@@ -114,7 +119,7 @@ internal sealed partial class DockAttentionListener : IDisposable
                 GetWindowThreadProcessId(foreground, out uint foregroundProcess);
                 if (foregroundProcess == processId && IsWindowVisible(foreground))
                 {
-                    diagnostic?.Invoke($"wechat-tray foreground={DescribeWindow(foreground)}");
+                    diagnostic?.Invoke($"{tray} foreground={DescribeWindow(foreground)}");
                     return true;
                 }
                 await Task.Delay(80);
@@ -175,6 +180,7 @@ internal sealed partial class DockAttentionListener : IDisposable
     [LibraryImport("user32.dll")][return:MarshalAs(UnmanagedType.Bool)] private static partial bool IsIconic(nint w);
     [LibraryImport("user32.dll")][return:MarshalAs(UnmanagedType.Bool)] private static partial bool ShowWindow(nint w,int command);
     [LibraryImport("user32.dll")][return:MarshalAs(UnmanagedType.Bool)] private static partial bool SetForegroundWindow(nint w);
+    [LibraryImport("user32.dll")][return:MarshalAs(UnmanagedType.Bool)] private static partial bool AllowSetForegroundWindow(uint processId);
     [LibraryImport("user32.dll")] private static partial nint GetAncestor(nint w, uint flags);
     [LibraryImport("user32.dll")] private static partial nint GetLastActivePopup(nint w);
     [LibraryImport("user32.dll")] private static partial nint GetForegroundWindow();

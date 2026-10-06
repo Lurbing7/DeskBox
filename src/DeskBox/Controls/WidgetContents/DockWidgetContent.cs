@@ -267,6 +267,7 @@ public sealed partial class DockWidgetContent : UserControl, IWidgetContent, IWi
     private async Task Launch(DockEntry entry)
     {
         await FileService.OpenItemAsync(new WidgetItem { Name = entry.Name, Path = entry.Path, TargetPath = entry.Target, IsShortcut = entry.Path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase) }, _window, allowBrokenShortcutRepair: false);
+        ClearLaunchFailure();
     }
     private void UpdateAttention()
     {
@@ -510,7 +511,12 @@ public sealed partial class DockWidgetContent : UserControl, IWidgetContent, IWi
         if (_disposed) return; _status.Text = text;
         _statusButton.Visibility = string.IsNullOrEmpty(text) || text == T("Dock.Empty") ? Visibility.Collapsed : Visibility.Visible;
         AutomationProperties.SetName(_statusButton, text);
+        ToolTipService.SetToolTip(_statusButton, string.IsNullOrEmpty(text) ? null : text);
         RequestSize();
+    }
+    private void ClearLaunchFailure()
+    {
+        if (_status.Text == T("Dock.LaunchFailed")) SetStatus("");
     }
     public void ApplyAppearance() { UpdateAttentionDivider(); UpdateRunningDivider(); }
     public void OnHostViewportSizeChanged(double width, double height) => RequestSize();

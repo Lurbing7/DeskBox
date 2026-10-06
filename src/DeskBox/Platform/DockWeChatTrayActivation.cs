@@ -19,19 +19,19 @@ internal static unsafe partial class DockWeChatTrayActivation
         nint automation = 0, root = 0, condition = 0, elements = 0, selected = 0, pattern = 0;
         try
         {
-            var icons = new List<Rect>();
+            var icons = new List<RegisteredIcon>();
             var state = GCHandle.Alloc((processId, icons));
             try { EnumWindows(&CollectTrayIcon, GCHandle.ToIntPtr(state)); }
             finally { state.Free(); }
             if (icons.Count != 1) { diagnostic?.Invoke($"wechat-tray registered-icons={icons.Count}"); return false; }
             nint shell = FindWindow("Shell_TrayWnd", null);
-            if (shell == 0 || CoCreateInstance(in AutomationClass, 0, 1, in AutomationInterface, out automation) < 0) return false;
-            if (((delegate* unmanaged[Stdcall]<nint, nint, nint*, int>)VTable(automation)[6])(automation, shell, &root) < 0) return false;
-            if (((delegate* unmanaged[Stdcall]<nint, nint*, int>)VTable(automation)[21])(automation, &condition) < 0) return false;
-            if (((delegate* unmanaged[Stdcall]<nint, int, nint, nint*, int>)VTable(root)[6])(root, 4, condition, &elements) < 0) return false;
+            if (shell == 0 || CoCreateInstance(in AutomationClass, 0, 1, in AutomationInterface, out automation) < 0) return TryInvokeRegisteredIcon(icons[0], processId, diagnostic, invoke);
+            if (((delegate* unmanaged[Stdcall]<nint, nint, nint*, int>)VTable(automation)[6])(automation, shell, &root) < 0) return TryInvokeRegisteredIcon(icons[0], processId, diagnostic, invoke);
+            if (((delegate* unmanaged[Stdcall]<nint, nint*, int>)VTable(automation)[21])(automation, &condition) < 0) return TryInvokeRegisteredIcon(icons[0], processId, diagnostic, invoke);
+            if (((delegate* unmanaged[Stdcall]<nint, int, nint, nint*, int>)VTable(root)[6])(root, 4, condition, &elements) < 0) return TryInvokeRegisteredIcon(icons[0], processId, diagnostic, invoke);
             int count = 0, matches = 0;
-            if (((delegate* unmanaged[Stdcall]<nint, int*, int>)VTable(elements)[3])(elements, &count) < 0) return false;
-            Rect icon = icons[0];
+            if (((delegate* unmanaged[Stdcall]<nint, int*, int>)VTable(elements)[3])(elements, &count) < 0) return TryInvokeRegisteredIcon(icons[0], processId, diagnostic, invoke);
+            Rect icon = icons[0].Bounds;
             for (int index = 0; index < Math.Min(count, 512); index++)
             {
                 nint element = 0;
@@ -53,9 +53,9 @@ internal static unsafe partial class DockWeChatTrayActivation
                 finally { Release(element); }
             }
             diagnostic?.Invoke($"wechat-tray matching-buttons={matches}");
-            if (matches != 1 || selected == 0) return false;
+            if (matches != 1 || selected == 0) return matches == 0 && TryInvokeRegisteredIcon(icons[0], processId, diagnostic, invoke);
             Guid invokeId = InvokeInterface;
-            if (((delegate* unmanaged[Stdcall]<nint, int, Guid*, nint*, int>)VTable(selected)[14])(selected, 10000, &invokeId, &pattern) < 0) return false;
+            if (((delegate* unmanaged[Stdcall]<nint, int, Guid*, nint*, int>)VTable(selected)[14])(selected, 10000, &invokeId, &pattern) < 0) return TryInvokeRegisteredIcon(icons[0], processId, diagnostic, invoke);
             if (!invoke) { diagnostic?.Invoke("wechat-tray invoke-pattern-available=True (read-only)"); return true; }
             bool accepted = ((delegate* unmanaged[Stdcall]<nint, int>)VTable(pattern)[3])(pattern) >= 0;
             diagnostic?.Invoke($"wechat-tray invoke-accepted={accepted}");
@@ -74,19 +74,48 @@ internal static unsafe partial class DockWeChatTrayActivation
         button.Right > button.Left && button.Bottom > button.Top &&
         button.Left <= icon.Left && button.Top <= icon.Top && button.Right >= icon.Right && button.Bottom >= icon.Bottom;
 
+    private readonly record struct RegisteredIcon(nint Window, Rect Bounds);
+
+    internal static bool IsSupportedTrayWindow(uint expectedProcess, uint actualProcess, string windowClass) =>
+        expectedProcess != 0 && expectedProcess == actualProcess && windowClass == "Qt51514WxTrayIconMessageWindowClass";
+
+    internal static nuint CallbackCoordinates(Rect icon) =>
+        (uint)(ushort)icon.Left | ((uint)(ushort)icon.Top << 16);
+
+    private static bool TryReadRegisteredIcon(nint window, uint processId, out RegisteredIcon icon)
+    {
+        icon = default;
+        GetWindowThreadProcessId(window, out uint owner);
+        if (processId == 0 || owner != processId) return false;
+        char* text = stackalloc char[256];
+        int length = GetClassName(window, text, 256);
+        if (!IsSupportedTrayWindow(processId, owner, new string(text, 0, Math.Max(0, length)))) return false;
+        var identity = new IconIdentifier { Size = (uint)sizeof(IconIdentifier), Window = window };
+        if (Shell_NotifyIconGetRect(ref identity, out Rect bounds) != 0 || bounds.Right <= bounds.Left || bounds.Bottom <= bounds.Top) return false;
+        icon = new(window, bounds);
+        return true;
+    }
+
+    private static bool TryInvokeRegisteredIcon(RegisteredIcon selected, uint processId, Action<string>? diagnostic, bool invoke)
+    {
+        if (!TryReadRegisteredIcon(selected.Window, processId, out var current)) return false;
+        // WeChat's Qt51514WxTray class uses icon ID 0 and WM_APP + 901.
+        // This differs from the upstream Qt tray class (WM_APP + 101).
+        // Hidden taskbars have no UIA button; notify the registered tray window
+        // so the application performs its own restoration and message refresh.
+        if (!invoke) { diagnostic?.Invoke("wechat-tray callback-available=True (read-only)"); return true; }
+        bool accepted = SendMessageTimeout(current.Window, 0x8385, CallbackCoordinates(current.Bounds), 0x400, 0x2, 300, out _) != 0;
+        diagnostic?.Invoke($"wechat-tray callback-message=0x8385 event=NIN_SELECT delivery-accepted={accepted}");
+        return accepted;
+    }
+
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvStdcall)])]
     private static int CollectTrayIcon(nint window, nint data)
     {
         try
         {
-            var state = ((uint ProcessId, List<Rect> Icons))GCHandle.FromIntPtr(data).Target!;
-            GetWindowThreadProcessId(window, out uint processId);
-            if (processId != state.ProcessId) return 1;
-            char* text = stackalloc char[256];
-            int length = GetClassName(window, text, 256);
-            if (new string(text, 0, Math.Max(0, length)) != "Qt51514WxTrayIconMessageWindowClass") return 1;
-            var identity = new IconIdentifier { Size = (uint)sizeof(IconIdentifier), Window = window };
-            if (Shell_NotifyIconGetRect(ref identity, out Rect icon) == 0 && icon.Right > icon.Left && icon.Bottom > icon.Top) state.Icons.Add(icon);
+            var state = ((uint ProcessId, List<RegisteredIcon> Icons))GCHandle.FromIntPtr(data).Target!;
+            if (TryReadRegisteredIcon(window, state.ProcessId, out var icon)) state.Icons.Add(icon);
         }
         catch { }
         return 1;
@@ -107,6 +136,7 @@ internal static unsafe partial class DockWeChatTrayActivation
     [LibraryImport("user32.dll", EntryPoint = "GetClassNameW")] private static partial int GetClassName(nint window, char* name, int size);
     [LibraryImport("user32.dll", EntryPoint = "FindWindowW", StringMarshalling = StringMarshalling.Utf16)] private static partial nint FindWindow(string className, string? title);
     [LibraryImport("shell32.dll")] private static partial int Shell_NotifyIconGetRect(ref IconIdentifier identity, out Rect rect);
+    [LibraryImport("user32.dll", EntryPoint="SendMessageTimeoutW")] private static partial nint SendMessageTimeout(nint window, uint message, nuint wParam, nint lParam, uint flags, uint timeout, out nuint result);
     [LibraryImport("ole32.dll")] private static partial int CoInitializeEx(nint reserved, uint mode);
     [LibraryImport("ole32.dll")] private static partial void CoUninitialize();
     [LibraryImport("ole32.dll")] private static partial int CoCreateInstance(in Guid clsid, nint outer, uint context, in Guid iid, out nint value);

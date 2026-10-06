@@ -78,14 +78,15 @@ public sealed partial class DockWidgetContent
             pair.First.Key == pair.Second.Key && pair.First.Name == pair.Second.Name && pair.First.Windows.SequenceEqual(pair.Second.Windows));
 
     private DockRunningApplication? RunningFor(DockEntry entry) => entry.IsFolder ? null :
-        _runningApplications.FirstOrDefault(app => string.Equals(app.Executable, entry.Target, StringComparison.OrdinalIgnoreCase));
+        _runningApplications.FirstOrDefault(app => DockApplicationIdentity.Matches(app.Executable, entry.Target));
 
     private void SyncRunningButtons()
     {
         var pinned = _items.Where(item => ReferenceEquals(item.Button.Parent, _row) && !item.Entry.IsFolder)
-            .Select(item => item.Entry.Target).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .Select(item => item.Entry.Target).ToArray();
         var notified = _listener?.Pending.Values.ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
-        var wanted = _runningApplications.Where(app => app.Executable is null || (!pinned.Contains(app.Executable) && !notified.Contains(app.Executable))).ToArray();
+        var wanted = _runningApplications.Where(app => app.Executable is null ||
+            (!pinned.Any(target => DockApplicationIdentity.Matches(app.Executable, target)) && !notified.Contains(app.Executable))).ToArray();
         var keys = wanted.Select(app => app.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (string key in _runningButtons.Keys.Where(key => !keys.Contains(key)).ToArray())
         {
@@ -96,7 +97,7 @@ public sealed partial class DockWidgetContent
         foreach (var app in wanted)
         {
             if (_runningButtons.ContainsKey(app.Key)) continue;
-            var entry = _folders.Values.SelectMany(items => items).FirstOrDefault(item => !item.IsFolder && string.Equals(item.Target, app.Executable, StringComparison.OrdinalIgnoreCase))
+            var entry = _folders.Values.SelectMany(items => items).FirstOrDefault(item => !item.IsFolder && DockApplicationIdentity.Matches(app.Executable, item.Target))
                 ?? new DockEntry(app.Executable ?? app.Key, app.Name, app.Executable ?? app.Key, false);
             var button = CreateButton(entry, runningKey: app.Key);
             _runningButtons[app.Key] = button; _runningRow.Children.Add(button);
@@ -160,7 +161,7 @@ public sealed partial class DockWidgetContent
         {
             string root = Config.MappedFolderPath!;
             var entries = await Task.Run(() => DockDirectory.Read(root));
-            if (entries.Any(entry => !entry.IsFolder && string.Equals(entry.Target, app.Executable, StringComparison.OrdinalIgnoreCase))) return;
+            if (entries.Any(entry => !entry.IsFolder && DockApplicationIdentity.Matches(app.Executable, entry.Target))) return;
             // Reuse the original shortcut to retain launch arguments and icon overrides.
             var source = await Task.Run(() => FindRunningShortcut(root, app.Executable!));
             HideFolderPanel();
@@ -173,7 +174,7 @@ public sealed partial class DockWidgetContent
     {
         foreach (var entry in DockDirectory.Read(directory))
         {
-            if (!entry.IsFolder && string.Equals(entry.Target, executable, StringComparison.OrdinalIgnoreCase)) return entry.Path;
+            if (!entry.IsFolder && DockApplicationIdentity.Matches(executable, entry.Target)) return entry.Path;
             if (Directory.Exists(entry.Path) && (File.GetAttributes(entry.Path) & FileAttributes.ReparsePoint) == 0 &&
                 FindRunningShortcut(entry.Path, executable) is { } child) return child;
         }
@@ -220,7 +221,7 @@ public sealed partial class DockWidgetContent
         HideFolderPanel();
         try
         {
-            if (DockRunningApplications.IsCurrent(window) && await DockAttentionListener.ActivateNotifiedWindowAsync(window.Handle, message => App.Log("[DockRunning] " + message))) return;
+            if (DockRunningApplications.IsCurrent(window) && await DockAttentionListener.ActivateNotifiedWindowAsync(window.Handle, message => App.Log("[DockRunning] " + message))) { ClearLaunchFailure(); return; }
             if (!_disposed) SetStatus(T("Dock.LaunchFailed"));
         }
         catch { if (!_disposed) SetStatus(T("Dock.LaunchFailed")); }

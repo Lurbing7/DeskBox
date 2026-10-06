@@ -56,7 +56,7 @@ public sealed partial class DockWidgetContent
         string path = entry.Target;
         var pending = _listener?.Pending.Where(item => string.Equals(item.Value, path, StringComparison.OrdinalIgnoreCase)).ToArray() ?? [];
         foreach (nint window in pending.Select(item => item.Key).Concat(capturedWindows ?? []).Distinct())
-            if (string.Equals(DockAttentionListener.ExecutableForWindow(window), path, StringComparison.OrdinalIgnoreCase) && await DockAttentionListener.ActivateNotifiedWindowAsync(window, message => App.Log("[DockAttention] " + message))) { _listener?.Clear(path); return; }
+            if (string.Equals(DockAttentionListener.ExecutableForWindow(window), path, StringComparison.OrdinalIgnoreCase) && await DockAttentionListener.ActivateNotifiedWindowAsync(window, message => App.Log("[DockAttention] " + message))) { _listener?.Clear(path); ClearLaunchFailure(); return; }
         SetStatus(T("Dock.LaunchFailed"));
     }
 
