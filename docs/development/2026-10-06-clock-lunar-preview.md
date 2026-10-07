@@ -2,6 +2,8 @@
 
 日期：2026-10-06；阶段：原生接入及针对性验证完成，标准 Debug 已启动，待实机视觉验收。
 
+2026-10-07 发布更新：用户明确授权提交与发布，已纳入 [v1.6.0-preview.3](https://github.com/Lurbing7/DeskBox/releases/tag/v1.6.0-preview.3)。完整项目中 40 项相关回归及 x64 Release/安装包检查通过；视觉、真实跨天与安装升级继续保留未验证状态。详见 [发布流程](2026-10-06-preview3-release.md)，此记录更新后文未发布状态。
+
 ## 1. 调研报告
 
 现有 `GlanceWidgetContent.xaml` 已有居中模式，但日期和星期横排，主时间卡片没有独立农历行。时间使用系统字体、SemiBold 和随尺寸计算的字号；本次样板沿用这一层级。项目已有 `GlanceTraditionalCalendarService` 的农历格式化能力，后续原生实现先评估复用，不引入第二套农历数据表。
